@@ -21,7 +21,9 @@ export class Recorder {
   private t: number[] = [];
   private data: Record<string, number[]> = {};
 
-  constructor(private keys: string[]) {
+  private keys: string[];
+  constructor(keys: string[]) {
+    this.keys = keys;
     for (const k of keys) this.data[k] = [];
   }
 

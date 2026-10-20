@@ -9,8 +9,11 @@ OUT="$ROOT/native/build"
 EMSDK_DIR="${EMSDK:-$ROOT/../emsdk}"
 
 [ -f "$SRC/CTRNN.cpp" ] || node "$ROOT/scripts/fetch-beer-sources.mjs"
-# shellcheck disable=SC1091
-source "$EMSDK_DIR/emsdk_env.sh" >/dev/null 2>&1
+# In CI the emsdk action already puts em++ on PATH (EMSDK_SKIP_ENV=1)
+if [ -z "${EMSDK_SKIP_ENV:-}" ]; then
+  # shellcheck disable=SC1091
+  source "$EMSDK_DIR/emsdk_env.sh" >/dev/null 2>&1
+fi
 mkdir -p "$OUT" "$ROOT/tests/fixtures"
 
 em++ -O2 -std=c++14 -Wno-register -Wno-deprecated -w \

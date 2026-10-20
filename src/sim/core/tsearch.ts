@@ -138,7 +138,10 @@ export class TSearch {
   readonly archive = new Map<number, IndividualRecord>();
   readonly generations: GenerationRecord[] = [];
 
-  constructor(config: SearchConfig, private evaluator: BatchEvaluator) {
+  private evaluator: BatchEvaluator;
+
+  constructor(config: SearchConfig, evaluator: BatchEvaluator) {
+    this.evaluator = evaluator;
     this.config = { ...config };
     const n = config.vectorSize;
     if (n <= 0) throw new Error(`Invalid vector size: ${n}`);
