@@ -161,9 +161,9 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
       ctx.stroke();
     }
 
-    // Main trajectory
-    if (xs && ys && overlays.length === 0) {
-      const stance = stanceKey ? rec.channels[stanceKey] : undefined;
+    // Main trajectory (plain ink while comparing)
+    if (xs && ys) {
+      const stance = stanceKey && overlays.length === 0 ? rec.channels[stanceKey] : undefined;
       ctx.lineWidth = 1.5;
       ctx.lineJoin = 'round';
       let k = i0;
@@ -266,6 +266,7 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
           <span className="chip"><LineKey color={theme.text} />stance</span>
           <span className="chip"><LineKey color={theme.text} dashed />swing</span>
         </>}
+        {overlays.length > 0 && <span className="chip"><LineKey color={theme.text} />current</span>}
         {overlays.map((o) => <span key={o.label} className="chip"><span className="swatch" style={{ background: o.color }} />{o.label}</span>)}
         {plane && showNull && <>
           <span className="chip"><span className="swatch" style={{ background: colorOf(theme, circuitView, plane.i) }} />{nameOf(circuitView, plane.i)} nullcline</span>

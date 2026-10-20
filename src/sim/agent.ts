@@ -25,6 +25,15 @@ export interface CircuitView {
   colorSlot?: (i: number) => number;
 }
 
+/** A scalar that sets the circuit's external inputs, e.g. a sensed leg angle. */
+export interface InputSweep {
+  label: string;
+  /** Recording channel holding the parameter over time. */
+  channel: string;
+  range: [number, number];
+  inputs: (value: number) => number[];
+}
+
 export interface AgentModule<P, E> {
   id: string;
   name: string;
@@ -35,6 +44,8 @@ export interface AgentModule<P, E> {
   simulate(p: P): Recording;
   channels(p: P): ChannelSpec[];
   circuitView(p: P): CircuitView | null;
+  /** Optional: a 1-D parameter driving the inputs, for equilibrium sweeps. */
+  inputSweep?(p: P): InputSweep | null;
 
   // ---- evolution ----
   /** Evolution config derived from the current parameters (controller, size, ranges, run). */

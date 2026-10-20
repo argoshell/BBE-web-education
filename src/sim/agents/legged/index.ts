@@ -144,6 +144,16 @@ export const leggedAgent: AgentModule<WalkerState, WalkerEvoConfig> = {
       ? null
       : { circuit: s.circuit, outputKey: (i) => `o${i + 1}`, stateKey: (i) => `y${i + 1}`, inputKey: (i) => `I${i + 1}` },
 
+  inputSweep: (s) => {
+    const lim = s.body.forwardAngleLimit, n = s.circuit.size;
+    const range: [number, number] = [s.body.backwardAngleLimit * 1.5, lim * 1.5];
+    if (s.controller === 'sensor')
+      return { label: 'leg angle (rad)', channel: 'angle', range, inputs: (a) => Array.from({ length: n }, (_, i) => s.sensorWeights[i] * (a / lim)) };
+    if (s.controller === 'one')
+      return { label: 'leg angle (rad)', channel: 'angle', range, inputs: (a) => Array.from({ length: n }, (_, i) => (i === 0 ? (a * 5.0) / lim : 0)) };
+    return null;
+  },
+
   defaultEvoConfig: (s) => ({
     spec: genomeSpecFor(s.controller === 'perfect' ? { ...s, controller: 'cpg', circuit: blankCircuit(5) } : s),
     run: { ...s.run, duration: 220 },

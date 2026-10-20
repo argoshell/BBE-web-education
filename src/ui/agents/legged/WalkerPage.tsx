@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { leggedAgent, type WalkerState } from '../../../sim/agents/legged';
 import { defaultBody } from '../../../sim/agents/legged/body';
 import type { Recording } from '../../../sim/core/recording';
+import { EquilibriumSweep } from '../../components/EquilibriumSweep';
 import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait';
 import { TraceStack, type TraceRow } from '../../components/TraceStack';
 import { Transport } from '../../components/Transport';
@@ -52,6 +53,7 @@ export function WalkerPage() {
   const pinColors = [theme.series[0], theme.series[1], theme.series[2]];
   const overlays: PhaseOverlay[] = ex.pins.map((p, k) => ({ rec: p.rec, color: pinColors[k], label: p.label }));
 
+  const sweep = useMemo(() => agent.inputSweep?.(state) ?? null, [state]);
   const fitness = rec.summary.avgVelocity;
   const perfectVel = useMemo(() => {
     const p = agent.presets[1].params();
@@ -108,6 +110,13 @@ export function WalkerPage() {
               overlays={compareInPhase ? overlays : []} />
           </div>
         </div>
+
+        {sweep && ex.circuitView && (
+          <div className="card">
+            <div className="card-head"><h2>Equilibria vs. leg angle</h2><span className="muted small">how sensory feedback reshapes the circuit's dynamics</span></div>
+            <EquilibriumSweep rec={rec} circuitView={ex.circuitView} sweep={sweep} idx={cur} window={window} />
+          </div>
+        )}
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}
