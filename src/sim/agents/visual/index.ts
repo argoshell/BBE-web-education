@@ -7,6 +7,7 @@ import { Recorder, type ChannelSpec, type Recording } from '../../core/recording
 import { mapSearchParameter } from '../../core/tsearch';
 import { BodySize, NumRays, VisualAgent, VisualObject, type ObjectShape } from './body';
 import categorizeNs from './categorize.json';
+import evolvedPresets from './evolvedPresets.json';
 
 export const N = 14;
 export const SENSORS = [0, 1, 2, 3, 4, 5, 6];
@@ -244,6 +245,12 @@ export const visualAgent: AgentModule<VisualState, VisualEvoConfig> = {
       description: 'The evolved categorizer shipped with EvolutionaryAgents v1.2.',
       params: () => visualAgent.defaultParams(),
     },
+    // Generated with scripts/evolve.ts --agent visual (population 96, symmetric genome, default trial set)
+    ...(evolvedPresets as { name: string; seed: number; fitness: number; circuit: CTRNNParams; trials: TrialSet; maxDistance: number }[]).map((p) => ({
+      name: `${p.name} (${p.fitness.toFixed(3)})`,
+      description: `Evolved by this site's TSearch port, seed ${p.seed}.`,
+      params: (): VisualState => ({ ...visualAgent.defaultParams(), circuit: structuredClone(p.circuit), trials: { ...p.trials }, maxDistance: p.maxDistance }),
+    })),
   ],
 
   simulate: simulateVisual,

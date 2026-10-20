@@ -107,8 +107,8 @@ export function VisualPage() {
           <TrialsOverview results={results} selected={state.trial} maxDistance={state.maxDistance}
             onSelect={(shape, offset) => { ex.setState({ ...state, trial: { ...state.trial, shape, offset, vy: state.trials.vy, size: state.trials.size } }); ex.setIdx(0); }} />
           <p className="small muted" style={{ marginTop: 6 }}>
-            Beer/Setzler's <code>categorize.ns</code> reliably avoids lines but only partly approaches circles that start off-center.
-            Evolve your own categorizer below.
+            Beer/Setzler's <code>categorize.ns</code> reliably avoids lines but only partly approaches circles that start off-center;
+            the evolved presets show the full behavior from Beer (2003): foveate, scan, then catch circles and avoid lines.
           </p>
         </div>
 

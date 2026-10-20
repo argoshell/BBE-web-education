@@ -49,3 +49,16 @@ describe('VisualAgent', () => {
     });
   }
 });
+
+import { runAllTrials, visualAgent } from '../src/sim/agents/visual';
+import visualPresets from '../src/sim/agents/visual/evolvedPresets.json';
+
+describe('visual presets', () => {
+  it('evolved presets reproduce their recorded fitness', () => {
+    for (const p of visualPresets as { name: string; fitness: number }[]) {
+      const preset = visualAgent.presets.find((q) => q.name.startsWith(p.name))!;
+      const r = runAllTrials(preset.params());
+      expect(r.reduce((s, t) => s + t.score, 0) / r.length).toBeCloseTo(p.fitness, 12);
+    }
+  });
+});
