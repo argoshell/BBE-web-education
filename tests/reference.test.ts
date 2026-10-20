@@ -109,6 +109,11 @@ describe('TSearch', () => {
     const p1 = mapSearchParameter(v[0], -10, 10), p2 = mapSearchParameter(v[1], -10, 10);
     return 200 - (p1 * p1 + p2 * p2);
   };
+  const quad6 = (v: Float64Array) => {
+    let s = 0;
+    for (let i = 0; i < 6; i++) { const p = mapSearchParameter(v[i], -10, 10) - (i + 1); s += p * p; }
+    return 600 - s;
+  };
   // Must match decodeWalker in native/harness/fixtures.cpp
   const walkSpec = { controller: 'cpg' as const, size: 3, ranges: defaultRanges };
   const walkRun = { duration: 220, dt: 0.1, randomize: false, seed: 0 };
@@ -120,14 +125,17 @@ describe('TSearch', () => {
     ['searchQuadGAFitProp', quad],
     ['searchWalkerGA', walker],
     ['searchWalkerHillReEval', walker],
+    ['searchQuadGACrossTwoPoint', quad6],
+    ['searchQuadGACrossUniform', quad6],
+    ['searchWalkerGACross', walker],
   ];
   for (const [name, fn] of cases) {
     it(`matches ${name}`, async () => {
       const f = ref[name];
       const cfg: SearchConfig = {
         vectorSize: f.vectorSize, populationSize: f.pop, maxGenerations: f.gens, seed: 87632455,
-        selection: f.selection, reproduction: f.mode, crossover: 'twopoint', elitistFraction: f.elite,
-        maxExpectedOffspring: 1.1, mutationVariance: f.mutationVariance, crossoverProbability: 0,
+        selection: f.selection, reproduction: f.mode, crossover: f.crossMode, elitistFraction: f.elite,
+        maxExpectedOffspring: 1.1, mutationVariance: f.mutationVariance, crossoverProbability: f.crossover,
         constrain: true, reEvaluate: !!f.reeval,
       };
       const s = new TSearch(cfg, localEvaluator(fn));

@@ -58,6 +58,13 @@ static double EvaluateQuadratic(TVector<double> &v, RandomState &) {
   return 200 - (p1 * p1 + p2 * p2);
 }
 
+// A 6-D quadratic, so crossover has several genes to exchange
+static double EvaluateQuad6(TVector<double> &v, RandomState &) {
+  double s = 0;
+  for (int i = 1; i <= 6; i++) { double p = MapSearchParameter(v[i], -10, 10) - i; s += p * p; }
+  return 600 - s;
+}
+
 // ---------- Search fixture ----------
 
 static vector<double> genBest, genAvg, genVar;
@@ -67,8 +74,12 @@ static void RecordStats(int, double best, double avg, double var) {
 
 static void searchFixture(const char *name, int vsize, double (*fn)(TVector<double> &, RandomState &),
                           TReproductionMode mode, int pop, int gens, double mutvar,
-                          double elite, int reeval, TSelectionMode sel) {
+                          double elite, int reeval, TSelectionMode sel,
+                          double crossProb = 0.0, TCrossoverMode crossMode = TWO_POINT) {
   genBest.clear(); genAvg.clear(); genVar.clear();
+  // Crossover decisions use the global random state; reset it so each search starts from
+  // the same state as a fresh process (the TS port uses a fresh stream per search).
+  SetRandomSeed(0);
   TSearch s(vsize);
   s.SetRandomSeed(87632455);
   s.SetEvaluationFunction(fn);
@@ -78,7 +89,8 @@ static void searchFixture(const char *name, int vsize, double (*fn)(TVector<doub
   s.SetPopulationSize(pop);
   s.SetMaxGenerations(gens);
   s.SetMutationVariance(mutvar);
-  s.SetCrossoverProbability(0.0);
+  s.SetCrossoverProbability(crossProb);
+  s.SetCrossoverMode(crossMode);
   s.SetMaxExpectedOffspring(1.1);
   s.SetElitistFraction(elite);
   s.SetSearchConstraint(1);
@@ -89,7 +101,9 @@ static void searchFixture(const char *name, int vsize, double (*fn)(TVector<doub
          mode == HILL_CLIMBING ? "hill" : "ga", sel == RANK_BASED ? "rank" : "fitprop", pop, gens);
   printf("\"mutationVariance\":"); num(mutvar);
   printf(",\"elite\":"); num(elite);
-  printf(",\"reeval\":%d,\"best\":", reeval); arr(genBest);
+  printf(",\"reeval\":%d,\"crossover\":", reeval); num(crossProb);
+  printf(",\"crossMode\":\"%s\"", crossMode == UNIFORM ? "uniform" : "twopoint");
+  printf(",\"best\":"); arr(genBest);
   printf(",\"avg\":"); arr(genAvg);
   printf(",\"var\":"); arr(genVar);
   TVector<double> &b = s.BestIndividual();
@@ -236,6 +250,9 @@ int main() {
   searchFixture("searchQuadGAFitProp", 2, EvaluateQuadratic, GENETIC_ALGORITHM, 50, 30, 0.1, 0.04, 0, FITNESS_PROPORTIONATE);
   searchFixture("searchWalkerGA", WalkN * (WalkN + 2), EvaluateWalker, GENETIC_ALGORITHM, 40, 25, 0.05, 0.05, 0, RANK_BASED);
   searchFixture("searchWalkerHillReEval", WalkN * (WalkN + 2), EvaluateWalker, HILL_CLIMBING, 30, 15, 0.05, 0.0, 1, RANK_BASED);
+  searchFixture("searchQuadGACrossTwoPoint", 6, EvaluateQuad6, GENETIC_ALGORITHM, 40, 30, 0.1, 0.05, 0, RANK_BASED, 0.6, TWO_POINT);
+  searchFixture("searchQuadGACrossUniform", 6, EvaluateQuad6, GENETIC_ALGORITHM, 40, 30, 0.1, 0.05, 0, RANK_BASED, 0.6, UNIFORM);
+  searchFixture("searchWalkerGACross", WalkN * (WalkN + 2), EvaluateWalker, GENETIC_ALGORITHM, 30, 15, 0.05, 0.05, 0, RANK_BASED, 0.5, TWO_POINT);
 
   printf("\n}\n");
   return 0;
