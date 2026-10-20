@@ -33,7 +33,7 @@ export function FitnessChart({ run, version, selectedId, onSelect }: ViewProps) 
   const selGen = selectedId !== null ? run.archive.get(selectedId)?.born : undefined;
   const geom = useRef({ w: 0, h: 0 });
 
-  const { boxRef, canvasRef } = useCanvas(240, (ctx, w, h) => {
+  const { boxRef, canvasRef, width } = useCanvas(240, (ctx, w, h) => {
     geom.current = { w, h };
     if (gens.length === 0) return;
     const gmax = Math.max(1, gens[gens.length - 1].gen);
@@ -102,7 +102,7 @@ export function FitnessChart({ run, version, selectedId, onSelect }: ViewProps) 
           onMouseLeave={() => setHover(null)}
           onClick={(e) => { const g = gens[genAt(e)]; if (g) onSelect(g.bestId); }} />
         {hg && hover && (
-          <div className="tooltip num" style={{ left: Math.min(hover.px + 12, geom.current.w - 160), top: hover.py + 10 }}>
+          <div className="tooltip num" style={{ left: Math.min(hover.px + 12, width - 160), top: hover.py + 10 }}>
             <div>generation {hg.gen}</div>
             <div>best {fmt(hg.best, 4)} (#{hg.bestId})</div>
             <div>mean {fmt(hg.avg, 4)}</div>

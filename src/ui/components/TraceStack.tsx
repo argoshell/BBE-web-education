@@ -35,7 +35,7 @@ export function TraceStack({ rec, rows, idx, onSeek, window: [i0, i1], stanceKey
   const height = rows.length * (rowHeight + GAP) + AXIS;
   const lastW = useRef(0);
 
-  const { boxRef, canvasRef } = useCanvas(height, (ctx, w) => {
+  const { boxRef, canvasRef, width } = useCanvas(height, (ctx, w) => {
     lastW.current = w;
     const t = rec.t;
     const end = Math.min(i1, t.length - 1);
@@ -124,7 +124,7 @@ export function TraceStack({ rec, rows, idx, onSeek, window: [i0, i1], stanceKey
   };
 
   const tip = hover && (
-    <div className="tooltip" style={{ left: Math.min(hover.x + 12, lastW.current - 170), top: 4 }}>
+    <div className="tooltip" style={{ left: Math.min(hover.x + 12, width - 170), top: 4 }}>
       <div className="num">t = {fmt(rec.t[hover.i], 2)}</div>
       {rows.map((r) => (
         <div key={r.key} className="inline num">

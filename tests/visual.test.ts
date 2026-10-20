@@ -23,7 +23,7 @@ function runTrial(shape: ObjectShape, agentX: number, objX: number) {
   obj.cy = 275;
   const ax: number[] = [], rays: number[] = [];
   const outs: number[][] = Array.from({ length: 14 }, () => []);
-  for (let t = 0; obj.cy > BodySize / 2; t += 0.1) {
+  while (obj.cy > BodySize / 2) {
     a.resetRays();
     for (const r of a.rays) { const c = { ...r }; obj.rayIntersection(c); rays.push(c.length); }
     a.step(0.1, obj);

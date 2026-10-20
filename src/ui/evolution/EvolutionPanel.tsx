@@ -1,11 +1,12 @@
 // Run TSearch for any agent and browse the results.
 
-import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { AnyAgentModule } from '../../sim/agent';
 import { defaultSearchConfig, type SearchConfig } from '../../sim/core/tsearch';
 import { CheckField, IntField, NumberField, SelectField } from '../components/controls';
 import { fmt } from '../plot';
-import { controllerFor, type RunFile } from './controller';
+import type { RunFile } from './controller';
+import { useEvolution } from './useEvolution';
 import { AncestorChain, FitnessChart, PopulationScatter } from './views';
 
 type SearchSettings = Omit<SearchConfig, 'vectorSize'>;
@@ -17,12 +18,6 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   onPin: (id: number) => void;
-}
-
-export function useEvolution(agentId: string) {
-  const ctl = controllerFor(agentId);
-  const version = useSyncExternalStore(ctl.subscribe, ctl.getVersion);
-  return { ctl, version };
 }
 
 export function EvolutionPanel({ agent, evoConfig, agentConfig, selectedId, onSelect, onPin }: Props) {

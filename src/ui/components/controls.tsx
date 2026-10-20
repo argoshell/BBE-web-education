@@ -1,6 +1,6 @@
 // Basic form controls: slider + number fields, selects.
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 interface NumberFieldProps {
   label: string;
@@ -15,8 +15,9 @@ interface NumberFieldProps {
 
 /** A labelled range slider with a synchronized number input (accepts values outside the slider range). */
 export function NumberField({ label, value, min, max, step = 0.01, onChange, title, color }: NumberFieldProps) {
-  const [text, setText] = useState(String(round(value)));
-  useEffect(() => setText(String(round(value))), [value]);
+  // While typing, keep the raw text; otherwise show the current value
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? String(round(value));
   return (
     <div className="field" title={title}>
       <label>
@@ -26,8 +27,9 @@ export function NumberField({ label, value, min, max, step = 0.01, onChange, tit
       <input type="range" min={min} max={max} step={step} value={Math.min(max, Math.max(min, value))}
         onChange={(e) => onChange(Number(e.target.value))} />
       <input type="number" step={step} value={text} className="num"
+        onBlur={() => setDraft(null)}
         onChange={(e) => {
-          setText(e.target.value);
+          setDraft(e.target.value);
           const v = Number(e.target.value);
           if (e.target.value !== '' && Number.isFinite(v)) onChange(v);
         }} />

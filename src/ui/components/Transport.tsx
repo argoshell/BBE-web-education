@@ -18,7 +18,7 @@ interface Props {
 export function Transport({ t, idx, onSeek, playing, onPlaying, speed, onSpeed, window: [i0, i1], onWindow }: Props) {
   const n = t.length;
   const idxRef = useRef(idx);
-  idxRef.current = idx;
+  useEffect(() => { idxRef.current = idx; }, [idx]);
 
   useEffect(() => {
     if (!playing) return;

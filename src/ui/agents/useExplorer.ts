@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AgentModule } from '../../sim/agent';
 import type { Recording } from '../../sim/core/recording';
-import { useEvolution } from '../evolution/EvolutionPanel';
+import { useEvolution } from '../evolution/useEvolution';
 import { parseHash, writeHash } from '../urlState';
 
 export interface LoadedIndividual {
