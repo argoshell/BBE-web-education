@@ -28,9 +28,13 @@ categorizer from `VisualAgent.cpp`, Beer 2003).
   drift. Tests compare against C++ traces with tolerances (step-wise ~1e-9 early
   on; summary stats such as average velocity ~1e-6).
 - `Pi = 3.1415926` (truncated). Keep it in the port for fidelity.
-- **`cpg.ns` has no size header**, but `operator>>(istream, CTRNN&)` reads one first.
-  The TS loader accepts both formats and infers N from the value count (N=5 → 40 values).
-  The reference harness prepends the size.
+- `cpg.ns` uses classic-Mac CR line endings (it looks headerless in `cat`, but it isn't).
+  The TS parser treats any whitespace, including CR, as a separator.
+- Run loops use `for (t = 0; t < T; t += dt)`, so floating-point accumulation gives
+  2001 steps for T=200, dt=0.1. The port reproduces that loop exactly.
+- `TSearch` seeds per-individual RandomStates with `UniformRandomInteger(1, LONG_MAX)`.
+  LONG_MAX is 2^31-1 on Windows and wasm32 but 2^63-1 on 64-bit Linux, so results
+  depend on platform. The port and the fixtures use 2^31-1.
 - `TSearch` GA crossover calls the *global* `ProbabilisticChoice` rather than the
   search's `rs`, so GA runs aren't fully seed-determined. Reproduce it in the
   reference build; the TS port uses `rs` (flagged as a documented deviation).
