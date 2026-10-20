@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds Beer's original C++ (from reference/) plus the fixture harness with emscripten,
-# runs it under node and writes tests/fixtures/reference.json.
+# Builds Beer's original C++ (from reference/) plus the fixture harnesses with emscripten,
+# runs them under node and writes tests/fixtures/*.json.
 # Requires emsdk: set EMSDK or install it next to this repo (../emsdk).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,11 +16,19 @@ if [ -z "${EMSDK_SKIP_ENV:-}" ]; then
 fi
 mkdir -p "$OUT" "$ROOT/tests/fixtures"
 
-em++ -O2 -std=c++14 -Wno-register -Wno-deprecated -w \
-  -I"$SRC" "$SRC/CTRNN.cpp" "$SRC/LeggedAgent.cpp" "$SRC/TSearch.cpp" "$SRC/random.cpp" \
-  "$ROOT/native/harness/fixtures.cpp" \
-  -sENVIRONMENT=node -sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=4MB \
-  -o "$OUT/fixtures.cjs"
+FLAGS=(-O2 -std=c++14 -w -I"$SRC" -sENVIRONMENT=node -sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=4MB)
 
+# Walker, CTRNN, RandomState and TSearch
+em++ "${FLAGS[@]}" "$SRC/CTRNN.cpp" "$SRC/LeggedAgent.cpp" "$SRC/TSearch.cpp" "$SRC/random.cpp" \
+  "$ROOT/native/harness/fixtures.cpp" -o "$OUT/fixtures.cjs"
 (cd "$SRC" && node "$OUT/fixtures.cjs") > "$ROOT/tests/fixtures/reference.json"
-node -e "const j=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); console.log('fixtures:', Object.keys(j).join(', '))" "$ROOT/tests/fixtures/reference.json"
+
+# Visual categorization agent
+em++ "${FLAGS[@]}" "$SRC/CTRNN.cpp" "$SRC/VisualAgent.cpp" "$SRC/random.cpp" \
+  "$ROOT/native/harness/visual_fixtures.cpp" -o "$OUT/visual_fixtures.cjs"
+(cd "$SRC" && node "$OUT/visual_fixtures.cjs") > "$ROOT/tests/fixtures/visual.json"
+
+for f in reference visual; do
+  node -e "const j=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); console.log(process.argv[2]+':', Object.keys(j).join(', '))" \
+    "$ROOT/tests/fixtures/$f.json" "$f"
+done

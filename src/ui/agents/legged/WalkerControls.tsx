@@ -17,9 +17,11 @@ const rad = (d: number) => (d * Math.PI) / 180;
 interface Props {
   state: WalkerState;
   onChange: (s: WalkerState) => void;
+  /** Load a whole new configuration (preset). */
+  onPreset: (s: WalkerState) => void;
 }
 
-export function WalkerControls({ state, onChange }: Props) {
+export function WalkerControls({ state, onChange, onPreset }: Props) {
   const theme = useTheme();
   const fileRef = useRef<HTMLInputElement>(null);
   const c = state.circuit, n = c.size;
@@ -39,7 +41,7 @@ export function WalkerControls({ state, onChange }: Props) {
       <details className="section" open>
         <summary>Controller</summary>
         <div className="section-body">
-          <SelectField label="preset" value="" onChange={(v) => { const p = leggedAgent.presets[Number(v)]; if (p) onChange(p.params()); }}
+          <SelectField label="preset" value="" onChange={(v) => { const p = leggedAgent.presets[Number(v)]; if (p) onPreset(p.params()); }}
             options={[{ value: '', label: 'Load a preset…' }, ...leggedAgent.presets.map((p, i) => ({ value: String(i), label: p.name }))]} />
           <SelectField label="type" value={state.controller} onChange={(k) => onChange(withController(state, k))}
             options={kinds.map((k) => ({ value: k, label: controllerInfo[k].label }))} />
