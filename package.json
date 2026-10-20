@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "fixtures": "bash native/build-fixtures.sh",
-    "fetch-sources": "node scripts/fetch-beer-sources.mjs"
+    "fetch-sources": "node scripts/fetch-beer-sources.mjs",
+    "typecheck": "tsc -b",
+    "evolve": "tsx scripts/evolve.ts"
   },
   "dependencies": {
     "react": "^19.3.1",
