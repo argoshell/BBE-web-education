@@ -2,6 +2,7 @@
 // and a genome difference heatmap. All work on RunData from any agent.
 
 import { useMemo, useRef, useState } from 'react';
+import { pca } from '../../sim/analysis/pca';
 import type { IndividualRecord } from '../../sim/core/tsearch';
 import { useCanvas } from '../hooks/useCanvas';
 import { drawXAxis, drawYTicks, fmt, linear, niceTicks, padExtent } from '../plot';
@@ -331,6 +332,105 @@ export function GenomeDiff({ items, labels }: { items: { label: string; color: s
         <span className="chip"><span className="swatch" style={{ background: divergingColor(theme, -1) }} />lower than {items[0].label}</span>
         <span className="chip"><span className="swatch" style={{ background: divergingColor(theme, 0) }} />same</span>
         <span className="chip"><span className="swatch" style={{ background: divergingColor(theme, 1) }} />higher (±0.5 in search space = full color)</span>
+      </div>
+    </div>
+  );
+}
+
+/** Light-to-dark sequential ramp (one hue), flipped on dark surfaces so early generations recede. */
+function sequential(theme: ReturnType<typeof useTheme>, t: number): string {
+  const light = [205, 226, 251], dark = [13, 54, 107];
+  const surfaceIsDark = parseInt(theme.surface.replace('#', '').slice(0, 2), 16) < 128;
+  const [a, b] = surfaceIsDark ? [dark, light] : [light, dark];
+  const c = a.map((v, k) => Math.round(v + (b[k] - v) * Math.max(0, Math.min(1, t))));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+/**
+ * Every individual's genome projected onto the population's first two principal components,
+ * colored by the generation it was born in. The selection's ancestry is drawn as a path,
+ * showing how the lineage moved through genome space.
+ */
+export function GenomeMap({ run, version, selectedId, onSelect }: ViewProps) {
+  const theme = useTheme();
+  const [hover, setHover] = useState<{ id: number; px: number; py: number } | null>(null);
+  const H = 320;
+  const proj = useMemo(() => {
+    const recs = [...run.archive.values()].filter((r) => Number.isFinite(r.perf));
+    if (recs.length < 3) return null;
+    // Fit on a subsample for speed, project everything
+    const step = Math.max(1, Math.floor(recs.length / 3000));
+    const p = pca(recs.filter((_, k) => k % step === 0).map((r) => r.genome), 2);
+    const pts = recs.map((r) => { const [x, y] = p.project(r.genome); return { id: r.id, born: r.born, perf: r.perf, x, y }; });
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const q of pts) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+    return { pts, explained: p.explained, xr: padExtent([x0, x1], 0.05), yr: padExtent([y0, y1], 0.05), byId: new Map(pts.map((q) => [q.id, q])) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run, version]);
+  const gmax = Math.max(1, run.generations[run.generations.length - 1]?.gen ?? 1);
+  const chain = useMemo(() => (selectedId === null ? [] : ancestry(run, selectedId)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [run, selectedId, version]);
+
+  const { boxRef, canvasRef, width } = useCanvas(H, (ctx, w, h) => {
+    if (!proj) return;
+    const x = linear(proj.xr[0], proj.xr[1], PAD.l, w - PAD.r), y = linear(proj.yr[0], proj.yr[1], h - PAD.b, PAD.t);
+    drawYTicks(ctx, y, PAD.l - 6, niceTicks(proj.yr[0], proj.yr[1], 5), theme.grid, theme.muted, PAD.l, w - PAD.r);
+    drawXAxis(ctx, x, h - PAD.b, PAD.l, w - PAD.r, niceTicks(proj.xr[0], proj.xr[1], 6), theme.axis, theme.muted,
+      `PC1 (${Math.round(proj.explained[0] * 100)}% of variance) · PC2 (${Math.round((proj.explained[1] ?? 0) * 100)}%) vertical`);
+    for (const q of proj.pts) {
+      ctx.fillStyle = sequential(theme, q.born / gmax);
+      ctx.fillRect(x(q.x) - 1.5, y(q.y) - 1.5, 3, 3);
+    }
+    if (chain.length) {
+      ctx.strokeStyle = theme.series[1];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      chain.forEach((a, k) => { const q = proj.byId.get(a.id); if (q) (k ? ctx.lineTo : ctx.moveTo).call(ctx, x(q.x), y(q.y)); });
+      ctx.stroke();
+      for (const a of chain) {
+        const q = proj.byId.get(a.id);
+        if (!q) continue;
+        ctx.beginPath();
+        ctx.arc(x(q.x), y(q.y), a.id === selectedId ? 5 : 3, 0, Math.PI * 2);
+        ctx.fillStyle = a.id === selectedId ? theme.text : theme.series[1];
+        ctx.fill();
+        ctx.strokeStyle = theme.surface;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+    if (hover) { const q = proj.byId.get(hover.id); if (q) { ctx.beginPath(); ctx.arc(x(q.x), y(q.y), 6, 0, Math.PI * 2); ctx.strokeStyle = theme.text; ctx.lineWidth = 1.5; ctx.stroke(); } }
+  }, [proj, chain, theme, hover, gmax, selectedId]);
+
+  const nearest = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!proj) return null;
+    const r = e.currentTarget.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const x = linear(proj.xr[0], proj.xr[1], PAD.l, width - PAD.r), y = linear(proj.yr[0], proj.yr[1], H - PAD.b, PAD.t);
+    let best: number | null = null, bd = 100;
+    for (const q of proj.pts) { const d = (x(q.x) - mx) ** 2 + (y(q.y) - my) ** 2; if (d < bd) { bd = d; best = q.id; } }
+    return best === null ? null : { id: best, px: mx, py: my };
+  };
+
+  if (!proj) return <p className="muted">Not enough individuals yet.</p>;
+  const hq = hover ? proj.byId.get(hover.id) : null;
+  return (
+    <div>
+      <div className="legend" style={{ marginBottom: 4 }}>
+        <span className="chip"><span className="swatch" style={{ background: `linear-gradient(90deg, ${sequential(theme, 0)}, ${sequential(theme, 1)})`, width: 40 }} />generation born 0 → {gmax}</span>
+        <span className="chip"><span className="swatch" style={{ background: theme.series[1] }} />ancestry of selection</span>
+        <span className="muted small">click to load</span>
+      </div>
+      <div ref={boxRef} className="canvas-box">
+        <canvas ref={canvasRef} style={{ cursor: 'pointer' }}
+          onMouseMove={(e) => setHover(nearest(e))} onMouseLeave={() => setHover(null)}
+          onClick={(e) => { const n = nearest(e); if (n) onSelect(n.id); }} />
+        {hq && hover && (
+          <div className="tooltip num" style={{ left: Math.min(hover.px + 12, width - 150), top: hover.py + 10 }}>
+            #{hq.id} · born gen {hq.born}<br />fitness {fmt(hq.perf, 4)}
+          </div>
+        )}
       </div>
     </div>
   );

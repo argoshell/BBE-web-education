@@ -7,7 +7,7 @@ import { CheckField, IntField, NumberField, SelectField } from '../components/co
 import { fmt } from '../plot';
 import type { RunFile } from './controller';
 import { useEvolution } from './useEvolution';
-import { AncestorChain, FitnessChart, PopulationScatter } from './views';
+import { AncestorChain, FitnessChart, GenomeMap, PopulationScatter } from './views';
 
 type SearchSettings = Omit<SearchConfig, 'vectorSize'>;
 
@@ -23,7 +23,7 @@ interface Props {
 export function EvolutionPanel({ agent, evoConfig, agentConfig, selectedId, onSelect, onPin }: Props) {
   const { ctl, version } = useEvolution(agent.id);
   const [search, setSearch] = useState<SearchSettings>({ ...defaultSearchConfig });
-  const [tab, setTab] = useState<'fitness' | 'lineage' | 'population'>('fitness');
+  const [tab, setTab] = useState<'fitness' | 'lineage' | 'population' | 'genomes'>('fitness');
   const fileRef = useRef<HTMLInputElement>(null);
   const run = ctl.run;
   const set = <K extends keyof SearchSettings>(k: K, v: SearchSettings[K]) => setSearch((s) => ({ ...s, [k]: v }));
@@ -113,9 +113,9 @@ export function EvolutionPanel({ agent, evoConfig, agentConfig, selectedId, onSe
         <div style={{ minWidth: 0 }}>
           {run && <div className="progress" style={{ marginBottom: 8 }}><div style={{ width: `${progress * 100}%` }} /></div>}
           <div className="tabs" role="tablist">
-            {(['fitness', 'lineage', 'population'] as const).map((t) => (
+            {(['fitness', 'lineage', 'population', 'genomes'] as const).map((t) => (
               <button key={t} role="tab" className="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-                {{ fitness: 'Fitness', lineage: 'Lineage', population: 'Population' }[t]}
+                {{ fitness: 'Fitness', lineage: 'Lineage', population: 'Population', genomes: 'Genome map' }[t]}
               </button>
             ))}
           </div>
@@ -126,8 +126,10 @@ export function EvolutionPanel({ agent, evoConfig, agentConfig, selectedId, onSe
             <FitnessChart run={run} version={version} selectedId={selectedId} onSelect={onSelect} />
           ) : tab === 'lineage' ? (
             <AncestorChain run={run} version={version} selectedId={selectedId} onSelect={onSelect} onPin={onPin} />
-          ) : (
+          ) : tab === 'population' ? (
             <PopulationScatter run={run} version={version} selectedId={selectedId} onSelect={onSelect} />
+          ) : (
+            <GenomeMap run={run} version={version} selectedId={selectedId} onSelect={onSelect} />
           )}
         </div>
       </div>

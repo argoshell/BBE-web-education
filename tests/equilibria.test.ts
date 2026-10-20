@@ -45,3 +45,19 @@ describe('equilibria', () => {
     expect(pts.every((p) => p.eq.outputs.every((o) => o > 0 && o < 1))).toBe(true);
   });
 });
+
+import { pca } from '../src/sim/analysis/pca';
+
+describe('pca', () => {
+  it('finds the main axis of elongated data', () => {
+    const data = Array.from({ length: 200 }, (_, k) => {
+      const t = Math.sin(k * 12.9898) * 10, u = Math.cos(k * 78.233);
+      return [t + 0.1 * u, t - 0.1 * u, 0.5 * u];
+    });
+    const p = pca(data, 2);
+    expect(Math.abs(Math.abs(p.components[0][0]) - Math.SQRT1_2)).toBeLessThan(1e-3);
+    expect(p.explained[0]).toBeGreaterThan(0.95);
+    const proj = p.project(data[3]);
+    expect(proj.length).toBe(2);
+  });
+});
