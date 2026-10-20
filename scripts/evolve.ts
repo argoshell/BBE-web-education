@@ -1,26 +1,33 @@
-// Command-line walker evolution, e.g. for generating presets:
-//   npx tsx scripts/evolve.ts --controller cpg --size 5 --pop 96 --gens 250 --seed 1 [--out file.json]
-// Prints progress and the best walker's parameters as JSON.
+// Command-line evolution for any agent, e.g. for generating presets:
+//   npx tsx scripts/evolve.ts --agent walker --controller cpg --size 5 --pop 96 --gens 250 --seed 1 [--out file.json]
+//   npx tsx scripts/evolve.ts --agent visual --pop 96 --gens 1000 --seed 1 --out visual.json
+// Prints progress to stderr and the best individual's parameters as JSON.
 
 import { writeFileSync } from 'node:fs';
-import { leggedAgent } from '../src/sim/agents/legged';
-import { defaultBody, type ControllerKind } from '../src/sim/agents/legged/body';
-import { defaultRanges, defaultRun } from '../src/sim/agents/legged/walker';
+import type { AnyAgentModule } from '../src/sim/agent';
+import { agentModules } from '../src/sim/agents/registry';
+import type { ControllerKind } from '../src/sim/agents/legged/body';
 import { defaultSearchConfig, localEvaluator, TSearch } from '../src/sim/core/tsearch';
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce<[string, string][]>((acc, a, i, all) => (a.startsWith('--') ? [...acc, [a.slice(2), all[i + 1]]] : acc), []),
 );
-const controller = (args.controller ?? 'cpg') as ControllerKind;
-const size = Number(args.size ?? 5);
-const evo = {
-  spec: { controller, size, ranges: defaultRanges },
-  run: { ...defaultRun, duration: Number(args.duration ?? 220), randomize: args.randomize === 'true' },
-  body: { ...defaultBody },
-};
+const agent: AnyAgentModule = agentModules[args.agent ?? 'walker'];
+if (!agent) throw new Error(`Unknown agent ${args.agent}`);
+
+const base = agent.defaultParams();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let evo: any = agent.defaultEvoConfig(base);
+if (agent.id === 'walker') {
+  evo = {
+    ...evo,
+    spec: { ...evo.spec, controller: (args.controller ?? 'cpg') as ControllerKind, size: Number(args.size ?? 5) },
+    run: { ...evo.run, duration: Number(args.duration ?? 220), randomize: args.randomize === 'true' },
+  };
+}
 const search = {
   ...defaultSearchConfig,
-  vectorSize: leggedAgent.genomeSize(evo),
+  vectorSize: agent.genomeSize(evo),
   populationSize: Number(args.pop ?? 96),
   maxGenerations: Number(args.gens ?? 250),
   seed: Number(args.seed ?? 1),
@@ -28,14 +35,15 @@ const search = {
   reproduction: (args.mode ?? 'ga') as 'ga' | 'hill',
 };
 
-const s = new TSearch(search, localEvaluator((g, rs) => leggedAgent.evaluate(g, evo, rs)));
+const s = new TSearch(search, localEvaluator((g, rs) => agent.evaluate(g, evo, rs)));
 const t0 = Date.now();
+const every = Math.max(1, Math.round(search.maxGenerations / 20));
 await s.run((g) => {
-  if (g.gen % 25 === 0 || g.gen === search.maxGenerations)
-    console.error(`gen ${g.gen} best ${g.bestSoFar.toFixed(4)} avg ${g.avg.toFixed(4)}`);
+  if (g.gen % every === 0 || g.gen === search.maxGenerations)
+    console.error(`gen ${g.gen} best ${g.bestSoFar.toFixed(4)} avg ${g.avg.toFixed(4)} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
 });
-const best = leggedAgent.decode(s.bestVector, evo);
+const best = agent.decode(s.bestVector, evo);
 console.error(`done in ${((Date.now() - t0) / 1000).toFixed(1)}s; best ${s.bestPerf.toFixed(4)}`);
-const out = { controller, size, seed: search.seed, fitness: s.bestPerf, circuit: best.circuit, sensorWeights: best.sensorWeights };
-if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 2));
+const out = { agent: agent.id, seed: search.seed, fitness: s.bestPerf, evo, genome: Array.from(s.bestVector), params: best };
+if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 1));
 else console.log(JSON.stringify(out));

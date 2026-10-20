@@ -19,6 +19,10 @@ export interface CircuitView {
   outputKey: (i: number) => string;
   stateKey: (i: number) => string;
   inputKey: (i: number) => string;
+  /** Display name of neuron i (default: n1, n2, ...). */
+  name?: (i: number) => string;
+  /** Categorical color slot (1-8) for neuron i, or 0 for a muted color (default: i + 1). */
+  colorSlot?: (i: number) => number;
 }
 
 export interface AgentModule<P, E> {

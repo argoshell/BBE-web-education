@@ -26,8 +26,12 @@ export function hashFor(page: string, state?: unknown): string {
 }
 
 let timer = 0;
-/** Update the hash without adding history entries (debounced). */
-export function writeHash(page: string, state: unknown) {
+/** Update the hash without adding history entries (debounced). Returns a cancel function. */
+export function writeHash(page: string, state: unknown): () => void {
   clearTimeout(timer);
-  timer = window.setTimeout(() => history.replaceState(null, '', hashFor(page, state)), 300);
+  timer = window.setTimeout(() => {
+    // Only rewrite if we are still on this page
+    if (parseHash().page === page) history.replaceState(null, '', hashFor(page, state));
+  }, 300);
+  return () => clearTimeout(timer);
 }

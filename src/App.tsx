@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { WalkerPage } from './ui/agents/legged/WalkerPage';
+import { VisualPage } from './ui/agents/visual/VisualPage';
 import { AboutPage } from './ui/AboutPage';
 import { parseHash } from './ui/urlState';
 
 const pages = [
   { id: 'walker', label: 'One-legged walker', ready: true },
-  { id: 'visual', label: 'Visual categorizer', ready: false },
+  { id: 'visual', label: 'Visual categorizer', ready: true },
   { id: 'about', label: 'About', ready: true },
 ];
 
@@ -32,7 +33,7 @@ export default function App() {
         <div className="spacer" />
         <span className="muted small">Web port of Randall Beer's EvolutionaryAgents</span>
       </header>
-      {page === 'about' ? <AboutPage /> : <WalkerPage />}
+      {page === 'about' ? <AboutPage /> : page === 'visual' ? <VisualPage key="visual" /> : <WalkerPage key="walker" />}
     </>
   );
 }

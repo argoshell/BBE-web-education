@@ -8,7 +8,7 @@ import { PlaneSlice, type PlaneSpace } from '../../sim/analysis/phasePlane';
 import type { ChannelSpec, Recording } from '../../sim/core/recording';
 import { useCanvas } from '../hooks/useCanvas';
 import { drawXAxis, drawYTicks, extent, fmt, linear, niceTicks, padExtent } from '../plot';
-import { neuronColor, useTheme, withAlpha } from '../theme';
+import { neuronColor, useTheme, withAlpha, type Theme } from '../theme';
 
 export interface PhaseOverlay {
   rec: Recording;
@@ -30,6 +30,15 @@ interface Props {
 }
 
 const PAD = { l: 44, r: 12, t: 10, b: 34 };
+
+function colorOf(theme: Theme, cv: CircuitView | null, i: number): string {
+  const slot = cv?.colorSlot ? cv.colorSlot(i) : i + 1;
+  return slot > 0 ? neuronColor(theme, slot) : theme.text2;
+}
+
+function nameOf(cv: CircuitView | null, i: number): string {
+  return cv?.name ? cv.name(i) : `n${i + 1}`;
+}
 
 function neuronOf(cv: CircuitView | null, key: string): { i: number; space: PlaneSpace } | null {
   if (!cv) return null;
@@ -133,7 +142,7 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
     if (analysis && showNull && plane) {
       ctx.lineWidth = 2;
       for (const [segs, i] of [[analysis.null.xNull, plane.i], [analysis.null.yNull, plane.j]] as const) {
-        ctx.strokeStyle = withAlpha(neuronColor(theme, i + 1), 0.8);
+        ctx.strokeStyle = withAlpha(colorOf(theme, circuitView, i), 0.8);
         ctx.beginPath();
         for (const [a, b, c, d] of segs) { ctx.moveTo(x(a), y(b)); ctx.lineTo(x(c), y(d)); }
         ctx.stroke();
@@ -259,8 +268,8 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
         </>}
         {overlays.map((o) => <span key={o.label} className="chip"><span className="swatch" style={{ background: o.color }} />{o.label}</span>)}
         {plane && showNull && <>
-          <span className="chip"><span className="swatch" style={{ background: neuronColor(theme, plane.i + 1) }} />n{plane.i + 1} nullcline</span>
-          <span className="chip"><span className="swatch" style={{ background: neuronColor(theme, plane.j + 1) }} />n{plane.j + 1} nullcline</span>
+          <span className="chip"><span className="swatch" style={{ background: colorOf(theme, circuitView, plane.i) }} />{nameOf(circuitView, plane.i)} nullcline</span>
+          <span className="chip"><span className="swatch" style={{ background: colorOf(theme, circuitView, plane.j) }} />{nameOf(circuitView, plane.j)} nullcline</span>
         </>}
         {plane && showFixed && <span className="chip">● stable · ○ unstable · ⊗ saddle</span>}
       </div>
