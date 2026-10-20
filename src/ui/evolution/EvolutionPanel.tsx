@@ -57,7 +57,7 @@ export function EvolutionPanel({ agent, evoConfig, agentConfig, selectedId, onSe
         {run && <span className="small num secondary">
           gen {last?.gen ?? 0}/{run.search.maxGenerations} · best {fmt(last?.bestSoFar ?? 0, 4)}
           {ctl.status === 'running' && ` · ${Math.round(ctl.evalsPerSecond)} evals/s`}
-          {ctl.status === 'loaded' && ' · loaded from file'}
+          {ctl.status === 'loaded' && ' · saved run (view only)'}
         </span>}
       </div>
       <div className="evo-grid">

@@ -3,10 +3,11 @@
 Interactive web ports of Randall Beer's evolutionary agent simulations
 ([EvolutionaryAgents](https://rdbeer.pages.iu.edu/): CTRNN, TSearch, LeggedAgent, …).
 
-The first agent is the **one-legged walker**:
+Two agents so far: the **one-legged walker** and the **visual categorizer** (Beer 2003). For each:
 
-- an animated body, neural and body traces, and a phase portrait with flow, nullclines and fixed points
-  for any two neurons, all linked to one time cursor;
+- an animated body/arena, neural traces, and a phase portrait with flow, nullclines and fixed points
+  for any two neurons, all linked to one time cursor (plus equilibria-vs-leg-angle sweeps for sensory walkers,
+  and an all-trials overview for the categorizer);
 - every parameter (time constants, biases, gains, weights, sensor weights, body constants) is editable live;
 - evolution runs in the browser (TSearch on Web Workers). Every individual is kept, so you can load any of them,
   follow ancestor chains, explore the whole population, and pin up to three individuals to compare gaits,

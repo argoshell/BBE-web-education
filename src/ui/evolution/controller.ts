@@ -3,6 +3,7 @@
 import type { AnyAgentModule } from '../../sim/agent';
 import { TSearch, type GenerationRecord, type IndividualRecord, type SearchConfig } from '../../sim/core/tsearch';
 import { WorkerPool } from '../../sim/workerPool';
+import { loadRun, saveRun } from './storage';
 
 export type RunStatus = 'idle' | 'running' | 'paused' | 'done' | 'loaded';
 
@@ -100,7 +101,7 @@ export class EvolutionController {
         this.evalsPerSecond = 0.8 * this.evalsPerSecond + (0.2 * s.populationSize) / Math.max(dt, 1e-6);
         this.notify();
       }
-      if (this.search === s && s.done) { this.status = 'done'; this.notify(true); }
+      if (this.search === s && s.done) { this.status = 'done'; this.notify(true); this.persist(); }
     } catch (e) {
       this.error = String(e);
       this.status = 'paused';
@@ -109,7 +110,13 @@ export class EvolutionController {
   }
 
   pause() {
-    if (this.status === 'running') { this.status = 'paused'; this.notify(true); }
+    if (this.status === 'running') { this.status = 'paused'; this.notify(true); this.persist(); }
+  }
+
+  /** Save the current run so it is restored after a reload. */
+  private persist() {
+    const f = this.toFile();
+    if (f) void saveRun(f.agentId, f);
   }
 
   resume() {
@@ -171,6 +178,12 @@ const controllers = new Map<string, EvolutionController>();
 /** One controller per agent page. */
 export function controllerFor(agentId: string): EvolutionController {
   let c = controllers.get(agentId);
-  if (!c) { c = new EvolutionController(); controllers.set(agentId, c); }
+  if (!c) {
+    const ctl = new EvolutionController();
+    controllers.set(agentId, ctl);
+    // Restore the last saved run unless a new one has started meanwhile
+    void loadRun(agentId).then((f) => { if (f && ctl.status === 'idle') ctl.load(f); });
+    c = ctl;
+  }
   return c;
 }

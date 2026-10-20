@@ -114,6 +114,25 @@ physics, an evaluation function and a body renderer.
   optional PCA of genomes); pin up to N individuals to overlay traces, phase plots and gaits,
   with a parameter-diff heatmap. Runs are saved to IndexedDB and can be exported/imported as JSON.
 
+## Status (2026-10-20)
+
+| Phase | Status |
+|---|---|
+| 0. Scaffold | Done: Vite/React/TS, Vitest, oxlint, source fetch script, emscripten fixture build, CI + Pages workflows. **Not yet pushed**: GitHub repo still to be created. |
+| 1. Core port | Done: RandomState, CTRNN (Euler/RK4), LeggedAgent (all variants), TSearch. Bit-identical to the C++ on every fixture. |
+| 2. Walker explorer | Done: body, traces, phase portrait (flow, nullclines, fixed points), parameter panel, linked time cursor, URL state. The live WASM comparison toggle was dropped; fixtures and CI cover fidelity. |
+| 3. Evolution and lineage | Done: worker pool, fitness / ancestor-chain / population views, pin and compare (gait, phase overlay, genome diff), run export/import. Not done: IndexedDB autosave, PCA genome map. |
+| 4. Generalize | Done: visual categorizer (port tested against the C++), shared `useExplorer` hook and compare card. |
+| 5. Analysis extras | Started: equilibria-vs-leg-angle sweeps for sensory walkers (`src/sim/analysis/equilibria.ts`). |
+
+### Ideas / next steps
+
+- IndexedDB autosave of runs; resume a run from an exported file (needs search state in the file).
+- Genome-space map (PCA) in the population explorer; lineage tree view with crossover edges.
+- Equilibrium sweeps for the visual agent (needs a scalar that drives its inputs, e.g. object position).
+- More agents: multi-legged walker (Beer 1995 hexapod), chemotaxis, minimally cognitive tasks.
+- Optional live "run the C++ (WASM) version" toggle for side-by-side checking.
+
 ## Phases
 
 0. **Scaffold**: git, Vite/React/TS, ESLint/Prettier, Vitest, fetch script, emsdk build
