@@ -11,6 +11,7 @@ import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
 import { VisualControls, VisualEvoConfigPanel } from './VisualControls';
+import { VisualInfoCard } from './VisualInfo';
 import { TrialsOverview, VisualArena } from './VisualViews';
 
 const agent = visualAgent;
@@ -111,6 +112,8 @@ export function VisualPage() {
             the evolved presets show the full behavior from Beer (2003): foveate, scan, then catch circles and avoid lines.
           </p>
         </div>
+
+        <VisualInfoCard state={state} time={rec.t[cur]} onSeekTime={(t) => ex.setIdx(Math.max(0, Math.round(t / state.dt)))} />
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}

@@ -4,3 +4,4 @@ reference/
 native/build/
 *.local
 .DS_Store
+.claude/

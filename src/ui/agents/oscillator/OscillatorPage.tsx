@@ -7,6 +7,7 @@ import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait
 import { TraceStack, type TraceRow } from '../../components/TraceStack';
 import { Transport } from '../../components/Transport';
 import { EvolutionPanel } from '../../evolution/EvolutionPanel';
+import { LaggedInfoCard } from '../../info/LaggedInfoPanel';
 import { fmt } from '../../plot';
 import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
@@ -115,6 +116,13 @@ export function OscillatorPage() {
             <SpectrumChart rec={rec} state={state} />
           </div>
         </div>
+
+        {n >= 2 && (
+          <LaggedInfoCard rec={rec} fromTime={state.run.transient}
+            description="Lagged mutual information between pairs of neurons after the transient: which neurons lead and which follow in the rhythm."
+            channels={Array.from({ length: n }, (_, i) => ({ key: `o${i + 1}`, label: `o${i + 1}`, color: neuronColor(theme, i + 1) }))}
+            targets={Array.from({ length: n }, (_, i) => ({ key: `o${i + 1}`, label: `neuron o${i + 1}` }))} />
+        )}
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}

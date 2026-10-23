@@ -10,6 +10,7 @@ import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait
 import { TraceStack, type TraceRow } from '../../components/TraceStack';
 import { Transport } from '../../components/Transport';
 import { EvolutionPanel } from '../../evolution/EvolutionPanel';
+import { LaggedInfoCard } from '../../info/LaggedInfoPanel';
 import { fmt } from '../../plot';
 import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
@@ -116,6 +117,16 @@ export function WalkerPage() {
             <div className="card-head"><h2>Equilibria vs. leg angle</h2><span className="muted small">how sensory feedback reshapes the circuit's dynamics</span></div>
             <EquilibriumSweep rec={rec} circuitView={ex.circuitView} sweep={sweep} idx={cur} window={window} />
           </div>
+        )}
+
+        {state.controller !== 'perfect' && (
+          <LaggedInfoCard rec={rec} fromTime={Math.min(20, state.run.duration / 4)}
+            description="Lagged mutual information between each neuron and the leg (angle, foot state, velocity) or another neuron, pooled over the run. Shows which neurons encode the leg's state and which anticipate it."
+            channels={Array.from({ length: state.circuit.size }, (_, i) => ({ key: `o${i + 1}`, label: `o${i + 1}`, color: neuronColor(theme, i + 1) }))}
+            targets={[
+              { key: 'angle', label: 'leg angle' }, { key: 'footState', label: 'foot state (stance / swing)' }, { key: 'vx', label: 'body velocity' },
+              ...Array.from({ length: state.circuit.size }, (_, i) => ({ key: `o${i + 1}`, label: `neuron o${i + 1}` })),
+            ]} />
         )}
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
