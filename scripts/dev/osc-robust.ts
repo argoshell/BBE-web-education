@@ -6,7 +6,7 @@ import { simulateOsc, transientIndex, type OscState } from '../../src/sim/agents
 for (const f of process.argv.slice(2)) {
   const j = JSON.parse(readFileSync(f, 'utf8'));
   const s: OscState = j.params;
-  const row = [f.split(/[\/]/).pop()!.padEnd(16), 'evolved', j.fitness.toFixed(3)];
+  const row = [f.split(/[\\/]/).pop()!.padEnd(16), 'evolved', j.fitness.toFixed(3)];
   for (const [dt, integ] of [[0.05, 'euler'], [0.01, 'euler'], [0.01, 'rk4']] as const) {
     const st = { ...s, run: { ...s.run, dt, integrator: integ } };
     const r = simulateOsc(st);
