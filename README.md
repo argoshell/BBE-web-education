@@ -3,11 +3,13 @@
 Interactive web ports of Randall Beer's evolutionary agent simulations
 ([EvolutionaryAgents](https://rdbeer.pages.iu.edu/): CTRNN, TSearch, LeggedAgent, …).
 
-Two agents so far: the **one-legged walker** and the **visual categorizer** (Beer 2003). For each:
+Three agents so far: a bodiless **CTRNN oscillator** (central pattern generator), the **one-legged walker**, and the
+**visual categorizer** (Beer 2003). For each:
 
 - an animated body/arena, neural traces, and a phase portrait with flow, nullclines and fixed points
   for any two neurons, all linked to one time cursor (plus equilibria-vs-leg-angle sweeps for sensory walkers,
-  and an all-trials overview for the categorizer);
+  an all-trials overview for the categorizer, and cycle statistics, a frequency spectrum and parameter-space maps
+  for the oscillator);
 - every parameter (time constants, biases, gains, weights, sensor weights, body constants) is editable live;
 - evolution runs in the browser (TSearch on Web Workers). Every individual is kept, so you can load any of them,
   follow ancestor chains, explore the whole population, and pin up to three individuals to compare gaits,
@@ -37,7 +39,9 @@ The original C++ is **not redistributed** here (it has no license). `npm run fet
 into `reference/` (gitignored). `npm run fixtures` compiles it plus `native/harness/fixtures.cpp` with
 [emscripten](https://emscripten.org/), runs it under Node, and writes `tests/fixtures/reference.json`. The
 tests compare the TypeScript port against those fixtures: RandomState, CTRNN (Euler and RK4), all
-LeggedAgent step variants and several TSearch runs match **bit-for-bit**.
+LeggedAgent step variants, the visual agent and several TSearch runs agree with the C++: random numbers bit-for-bit,
+integrated trajectories to within floating-point rounding (`Math.exp` can differ from the C library's `exp` in the last bit,
+e.g. 3e-16 after thousands of steps; many fixtures, such as the `cpg.ns` walker, still match exactly).
 
 `npm run fixtures` expects emsdk in `../emsdk` (or set `EMSDK`). In CI, the `reference-fixtures` job rebuilds the
 fixtures and fails if they change.

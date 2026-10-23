@@ -15,7 +15,8 @@ analysis and in-browser evolution. Plan and status: `docs/PLAN.md`.
 ## Rules
 
 - Beer's C++ has no license: never commit it. `scripts/fetch-beer-sources.mjs` puts it in gitignored `reference/`.
-- Ports must match the C++ **bit-for-bit**: same operation order, same random draws, same loop structure
+- Ports must match the C++ to floating-point rounding (RandomState is bit-exact; `Math.exp` may differ from libm
+  by 1 ulp, so compare trajectories with ~1e-9 relative tolerance): same operation order, same random draws, same loop structure
   (e.g. `for (t = 0; t < T; t += dt)` gives 2001 steps for T=200, dt=0.1). Add a C++ harness in
   `native/harness/` and a fixture test for every ported class before building UI on it.
 - Index conventions: TS is 0-based; CTRNN weights are row-major by source neuron (`w[from * n + to]`).

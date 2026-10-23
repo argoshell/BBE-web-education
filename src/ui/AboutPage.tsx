@@ -11,8 +11,15 @@ export function AboutPage() {
         <p>
           The port is tested against the original: the C++ is compiled to WebAssembly with emscripten and its output
           is compared with the TypeScript output. Random number generation, CTRNN integration, the walker body
-          and short TSearch runs match bit-for-bit.
+          and short TSearch runs agree to within floating-point rounding (random numbers match bit-for-bit;
+          JavaScript's <code>Math.exp</code> can differ from C's <code>exp</code> in the last bit).
         </p>
+        <h3>CTRNN oscillator</h3>
+        <ul>
+          <li>Beer, R.D. (1995). On the dynamics of small continuous-time recurrent neural networks. <i>Adaptive Behavior</i> 3(4):469–509.</li>
+          <li>Mathayomchan, B. and Beer, R.D. (2002). Center-crossing recurrent neural networks for the evolution of rhythmic behavior. <i>Neural Computation</i> 14:2043–2051.</li>
+          <li>Default circuit: <code>SimpleCTRNNMain.cpp</code> from EvolutionaryAgents.</li>
+        </ul>
         <h3>One-legged walker</h3>
         <ul>
           <li>Beer, R.D. and Gallagher, J.C. (1992). Evolving dynamical neural networks for adaptive behavior. <i>Adaptive Behavior</i> 1:91–122.</li>
@@ -29,6 +36,7 @@ export function AboutPage() {
           <li>The "CTRNN + angle sensor" controller is new: <code>Step</code> with leg-angle input Iᵢ = sᵢ·angle/30° to every neuron.</li>
           <li>Crossover decisions use a dedicated random stream seeded like the C++ global state, so runs are reproducible from the seed.</li>
           <li>The visual agent's fitness (catch circles, avoid lines; distance clipped at 45) and its symmetric genome follow Beer (2003); the C++ package ships no fitness function for it.</li>
+          <li>The oscillator's fitness functions (average output change, or amplitude × closeness to a target period) are this site's, after the oscillation measures in the papers above.</li>
           <li>Phase portrait nullclines and fixed points are computed for 2-neuron slices with the other neurons frozen at the current instant.</li>
         </ul>
       </div>

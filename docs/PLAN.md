@@ -119,19 +119,41 @@ physics, an evaluation function and a body renderer.
 | Phase | Status |
 |---|---|
 | 0. Scaffold | Done: Vite/React/TS, Vitest, oxlint, source fetch script, emscripten fixture build, CI + Pages workflows. **Not yet pushed**: GitHub repo still to be created. |
-| 1. Core port | Done: RandomState, CTRNN (Euler/RK4), LeggedAgent (all variants), TSearch. Bit-identical to the C++ on every fixture. |
+| 1. Core port | Done: RandomState, CTRNN (Euler/RK4), LeggedAgent (all variants), TSearch. Matches the C++ fixtures to rounding (RNG bit-exact; ~1e-16 differences from exp). |
 | 2. Walker explorer | Done: body, traces, phase portrait (flow, nullclines, fixed points), parameter panel, linked time cursor, URL state. The live WASM comparison toggle was dropped; fixtures and CI cover fidelity. |
 | 3. Evolution and lineage | Done: worker pool, fitness / ancestor-chain / population views, pin and compare (gait, phase overlay, genome diff), run export/import. Not done: IndexedDB autosave, PCA genome map. |
 | 4. Generalize | Done: visual categorizer (port tested against the C++), shared `useExplorer` hook and compare card. |
-| 5. Analysis extras | Started: equilibria-vs-leg-angle sweeps for sensory walkers (`src/sim/analysis/equilibria.ts`). |
+| 5. Analysis extras | Done so far: equilibria-vs-leg-angle sweeps for sensory walkers, genome map (PCA), IndexedDB autosave. |
+| 6. Oscillator (2026-10-23) | Done: bodiless CTRNN (1–8 neurons), fitness = total output change or target period, center-crossing toggle, cycle table (period / amplitude / phase), spectrum, parameter-space map, RK4 artifact check. Default circuit from SimpleCTRNNMain.cpp. |
 
 ### Ideas / next steps
 
-- IndexedDB autosave of runs; resume a run from an exported file (needs search state in the file).
-- Genome-space map (PCA) in the population explorer; lineage tree view with crossover edges.
+### Task roadmap (chosen 2026-10-23)
+
+None of these ship in the original C++ package, so each port follows the papers. Verify
+details against the sources before implementing, and add CLI evolution checks like the oscillator's.
+
+1. **Chemotaxis**: 2-D point agent with a chemical sensor climbing a gradient (C. elegans-style
+   klinotaxis). New body: position, heading, sensor at the head; fitness = final/mean distance to peak.
+2. **Visual-body variants** (reuse `src/sim/agents/visual/body.ts`): orientation/pointing, selective
+   attention (two falling objects, catch both), relational categorization (is this object larger than
+   the previous one?), delayed response / short-term memory.
+3. **Hexapod walker**: six copies of the leg body coupled through the CTRNN (Beer 1995 / Beer, Chiel &
+   Gallagher 1999); gaits from coupled CPGs; reuse `src/sim/agents/legged/body.ts`.
+4. **Learning without synaptic plasticity**: associative learning carried by circuit dynamics
+   (e.g. Yamauchi & Beer 1994; Izquierdo, Harvey & Beer 2008); trials whose rule changes within a lifetime.
+
+### Other ideas
+
+- Resume a run from an exported file (needs search state in the file); lineage tree view with crossover edges.
 - Equilibrium sweeps for the visual agent (needs a scalar that drives its inputs, e.g. object position).
-- More agents: multi-legged walker (Beer 1995 hexapod), chemotaxis, minimally cognitive tasks.
 - Optional live "run the C++ (WASM) version" toggle for side-by-side checking.
+
+### Lessons
+
+- Fitness functions that reward speed (e.g. total output change) let evolution exploit Euler error
+  at coarse steps. Evolve at the explorer's step size, keep τ ≥ 1 by default, and check presets with
+  RK4 at dt/5 (`refinedFitness`, tested in `tests/oscillator.test.ts`).
 
 ## Phases
 

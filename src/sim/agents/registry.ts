@@ -2,9 +2,11 @@
 
 import type { AnyAgentModule } from '../agent';
 import { leggedAgent } from './legged';
+import { oscillatorAgent } from './oscillator';
 import { visualAgent } from './visual';
 
 export const agentModules: Record<string, AnyAgentModule> = {
   [leggedAgent.id]: leggedAgent,
   [visualAgent.id]: visualAgent,
+  [oscillatorAgent.id]: oscillatorAgent,
 };

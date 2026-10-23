@@ -1,6 +1,7 @@
 // Command-line evolution for any agent, e.g. for generating presets:
 //   npx tsx scripts/evolve.ts --agent walker --controller cpg --size 5 --pop 96 --gens 250 --seed 1 [--out file.json]
 //   npx tsx scripts/evolve.ts --agent visual --pop 96 --gens 1000 --seed 1 --out visual.json
+//   npx tsx scripts/evolve.ts --agent oscillator --size 3 --cc true --fitness period --period 10
 // Prints progress to stderr and the best individual's parameters as JSON.
 
 import { writeFileSync } from 'node:fs';
@@ -23,6 +24,14 @@ if (agent.id === 'walker') {
     ...evo,
     spec: { ...evo.spec, controller: (args.controller ?? 'cpg') as ControllerKind, size: Number(args.size ?? 5) },
     run: { ...evo.run, duration: Number(args.duration ?? 220), randomize: args.randomize === 'true' },
+  };
+}
+if (agent.id === 'oscillator') {
+  evo = {
+    ...evo,
+    size: Number(args.size ?? 2),
+    centerCrossing: args.cc === 'true',
+    fitness: { kind: args.fitness ?? 'change', targetPeriod: Number(args.period ?? 10) },
   };
 }
 const search = {
