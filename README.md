@@ -53,6 +53,18 @@ The visually guided tasks are checked the same way against Izquierdo's code (als
 `npm run fixtures` expects emsdk in `../emsdk` (or set `EMSDK`). In CI, the `reference-fixtures` job rebuilds the
 fixtures and fails if they change.
 
+## Checking the dynamics analyses against Dynamica
+
+The Dynamics card (equilibria, limit cycles, bifurcation diagrams) reimplements analyses offered by Beer's
+[Dynamica](https://rdbeer.pages.iu.edu/) package for Mathematica. `npm run fixtures:dynamica` runs Dynamica itself in the
+Free Wolfram Engine (official Docker image) and writes `tests/fixtures/dynamica.json`; `tests/dynamica.test.ts` checks that
+equilibria, eigenvalues, limit-cycle periods, Floquet multipliers and fold/Hopf points agree (bifurcation points match to
+~1e-15, periods to ~1e-6). Activating the engine needs your own free Wolfram ID:
+
+```sh
+docker run -it --rm -v <license-dir>:/home/wolframengine/.WolframEngine/Licensing wolframresearch/wolframengine wolframscript -activate
+```
+
 ## Adding an agent
 
 Implement `AgentModule` (`src/sim/agent.ts`): parameters, simulation into named channels, genome

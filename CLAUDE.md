@@ -9,6 +9,9 @@ analysis and in-browser evolution. Plan and status: `docs/PLAN.md`.
 - `npm test`: Vitest (TS port vs. C++ fixtures, analysis, lineage)
 - `npm run typecheck` / `npm run lint` / `npm run build`
 - `npm run fixtures`: rebuild `tests/fixtures/*.json` from the original C++ via emscripten (needs emsdk in `../emsdk`)
+- `npm run fixtures:dynamica`: regenerate `tests/fixtures/dynamica.json` by running Beer's Dynamica in the Free Wolfram Engine
+  Docker image (`wolframresearch/wolframengine`); needs a one-time `wolframscript -activate` with your own Wolfram ID, license kept in
+  `../wolfram-license` (outside the repo). CI only checks the committed fixtures.
 - `npx tsx scripts/evolve.ts --agent walker|visual ...`: command-line evolution (used for presets)
 - `node scripts/screenshot.mjs <url> <out.png>`: headless screenshot with local Chrome
 

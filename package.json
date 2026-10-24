@@ -12,7 +12,8 @@
     "fixtures": "bash native/build-fixtures.sh",
     "fetch-sources": "node scripts/fetch-beer-sources.mjs",
     "typecheck": "tsc -b",
-    "evolve": "tsx scripts/evolve.ts"
+    "evolve": "tsx scripts/evolve.ts",
+    "fixtures:dynamica": "bash native/dynamica/run.sh"
   },
   "dependencies": {
     "react": "^19.3.1",

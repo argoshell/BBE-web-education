@@ -335,7 +335,8 @@ export function followEquilibriumBranch(fam: ParamFamily, y0: Float64Array, lamb
 /**
  * Bifurcations between consecutive branch points: a real eigenvalue crossing zero changes the
  * sign of det(J) (fold); a complex pair crossing the imaginary axis changes the number of
- * unstable eigenvalues by two without changing the sign of det(J) (Hopf).
+ * unstable eigenvalues by two without changing the sign of det(J) (Hopf). Each is then located
+ * precisely by bisection on the corresponding test function along the branch.
  */
 function detectBifurcations(fam: ParamFamily, pts: BranchPoint[]): Bifurcation[] {
   const out: Bifurcation[] = [];
@@ -343,21 +344,77 @@ function detectBifurcations(fam: ParamFamily, pts: BranchPoint[]): Bifurcation[]
     const a = pts[k - 1], b = pts[k];
     if (a.unstableCount === b.unstableCount) continue;
     const kind = Math.abs(a.unstableCount - b.unstableCount) === 2 && sameDetSign(fam, a, b) ? 'hopf' : 'fold';
-    const mid = Float64Array.from(a.y, (v, i) => (v + b.y[i]) / 2);
-    const lambda = (a.lambda + b.lambda) / 2;
-    out.push({ kind, lambda, y: mid, outputs: outputsOf(fam.circuit(lambda), mid) });
+    const loc = locateBifurcation(fam, a, b, kind);
+    out.push({ kind, lambda: loc.lambda, y: loc.y, outputs: outputsOf(fam.circuit(loc.lambda), loc.y) });
   }
   return out;
 }
 
-function sameDetSign(fam: ParamFamily, a: BranchPoint, b: BranchPoint): boolean {
-  const det = (p: BranchPoint) => {
-    const ev = eigenvalues(jacobian(fam.circuit(p.lambda), p.y), p.y.length);
-    let re = 1, im = 0;
-    for (const e of ev) { const r = re * e.re - im * e.im; im = re * e.im + im * e.re; re = r; }
-    return re;
+function detJ(fam: ParamFamily, y: Float64Array, lambda: number): number {
+  const ev = eigenvalues(jacobian(fam.circuit(lambda), y), y.length);
+  let re = 1, im = 0;
+  for (const e of ev) { const r = re * e.re - im * e.im; im = re * e.im + im * e.re; re = r; }
+  return re;
+}
+
+/** Real part of the complex eigenvalue pair nearest the imaginary axis (Hopf test function). */
+function hopfTest(fam: ParamFamily, y: Float64Array, lambda: number): number {
+  const ev = eigenvalues(jacobian(fam.circuit(lambda), y), y.length).filter((e) => Math.abs(e.im) > 1e-9);
+  if (ev.length === 0) return NaN;
+  return ev.reduce((m, e) => (Math.abs(e.re) < Math.abs(m.re) ? e : m)).re;
+}
+
+/** Correct a point onto the branch, keeping it on the hyperplane through u0 orthogonal to dir. */
+function correctOnPlane(fam: ParamFamily, y0: Float64Array, l0: number, dir: Float64Array): { y: Float64Array; lambda: number } | null {
+  const n = y0.length;
+  let y = y0.slice(), l = l0;
+  for (let it = 0; it < 30; it++) {
+    const { F, Jy, Fl } = augmented(fam, y, l);
+    const A = new Float64Array((n + 1) * (n + 1)), r = new Float64Array(n + 1);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) A[i * (n + 1) + j] = Jy[i * n + j];
+      A[i * (n + 1) + n] = Fl[i];
+      r[i] = F[i];
+    }
+    for (let j = 0; j <= n; j++) A[n * (n + 1) + j] = dir[j];
+    let c = 0;
+    for (let j = 0; j < n; j++) c += dir[j] * (y[j] - y0[j]);
+    r[n] = c + dir[n] * (l - l0);
+    const d = solveLinear(A, r, n + 1);
+    if (!d) return null;
+    for (let i = 0; i < n; i++) y[i] -= d[i];
+    l -= d[n];
+    if (Math.hypot(...d) < 1e-13) break;
+  }
+  return y.every(Number.isFinite) ? { y, lambda: l } : null;
+}
+
+function locateBifurcation(fam: ParamFamily, a: BranchPoint, b: BranchPoint, kind: 'fold' | 'hopf'): { y: Float64Array; lambda: number } {
+  const n = a.y.length;
+  const dir = Float64Array.from({ length: n + 1 }, (_, i) => (i < n ? b.y[i] - a.y[i] : b.lambda - a.lambda));
+  const test = (p: { y: Float64Array; lambda: number }) => (kind === 'fold' ? detJ(fam, p.y, p.lambda) : hopfTest(fam, p.y, p.lambda));
+  const at = (s: number) => {
+    const y0 = Float64Array.from(a.y, (v, i) => v + s * (b.y[i] - a.y[i]));
+    return correctOnPlane(fam, y0, a.lambda + s * (b.lambda - a.lambda), dir);
   };
-  return Math.sign(det(a)) === Math.sign(det(b));
+  let lo = 0, hi = 1;
+  let pLo = { y: a.y, lambda: a.lambda }, pHi = { y: b.y, lambda: b.lambda };
+  let tLo = test(pLo);
+  const tHi = test(pHi);
+  if (!(Math.sign(tLo) !== Math.sign(tHi))) return { y: Float64Array.from(a.y, (v, i) => (v + b.y[i]) / 2), lambda: (a.lambda + b.lambda) / 2 };
+  for (let it = 0; it < 60; it++) {
+    const mid = (lo + hi) / 2, p = at(mid);
+    if (!p) break;
+    const t = test(p);
+    if (!Number.isFinite(t)) break;
+    if (Math.sign(t) === Math.sign(tLo)) { lo = mid; pLo = p; tLo = t; } else { hi = mid; pHi = p; }
+    if (hi - lo < 1e-12) break;
+  }
+  return { y: Float64Array.from(pLo.y, (v, i) => (v + pHi.y[i]) / 2), lambda: (pLo.lambda + pHi.lambda) / 2 };
+}
+
+function sameDetSign(fam: ParamFamily, a: BranchPoint, b: BranchPoint): boolean {
+  return Math.sign(detJ(fam, a.y, a.lambda)) === Math.sign(detJ(fam, b.y, b.lambda));
 }
 
 /** All equilibrium branches over [lmin, lmax]: start from every equilibrium found at a few lambda values. */

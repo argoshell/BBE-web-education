@@ -127,6 +127,7 @@ physics, an evaluation function and a body renderer.
 | 6. Oscillator (2026-10-23) | Done: bodiless CTRNN (1–8 neurons), fitness = total output change or target period, center-crossing toggle, cycle table (period / amplitude / phase), spectrum, parameter-space map, RK4 artifact check. Default circuit from SimpleCTRNNMain.cpp. |
 | 7. Visually guided tasks (2026-10-23) | Done: Izquierdo/Beer/Setzler VisuallyGuidedAgent (`guided` page): size discrimination and perceiving affordances (apertures), 15-ray agent with sensor-weight layer and symmetric 100-gene genome, tested against the C++ (fetched at a pinned commit, never committed). Evolved presets: size 1.000, affordances 1.000, both (product) 0.928. |
 | 8. Chemotaxis (2026-10-23) | Done: port of Izquierdo's CE_orientation klinotaxis worm (WormAgent.cpp, main.cpp genome/fitness), tested against the C++ (`npm run fixtures`, fetched by `scripts/fetch-izquierdo-sources.mjs` at a pinned commit); arena with concentration field, all-runs overview, evolved presets checked at dt/2. |
+| 9. Dynamics / Dynamica (2026-10-24) | Done: eigenvalues (Francis QR), equilibria classified as in Dynamica, limit cycles by Newton shooting with Floquet multipliers, pseudo-arclength continuation with precisely located fold/Hopf points; Dynamics card on oscillator and walker pages. Verified against Beer's Dynamica run in the Free Wolfram Engine (`npm run fixtures:dynamica`). Next: limit-cycle branches, saddle manifolds, two-parameter fold/Hopf curves, Dynamics card for the other agents. |
 
 ### Ideas / next steps
 
