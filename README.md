@@ -3,8 +3,9 @@
 Interactive web ports of Randall Beer's evolutionary agent simulations
 ([EvolutionaryAgents](https://rdbeer.pages.iu.edu/): CTRNN, TSearch, LeggedAgent, …).
 
-Three agents so far: a bodiless **CTRNN oscillator** (central pattern generator), the **one-legged walker**, and the
-**visual categorizer** (Beer 2003). For each:
+Four agents so far: a bodiless **CTRNN oscillator** (central pattern generator), the **one-legged walker**, the
+**visual categorizer** (Beer 2003), and **C. elegans klinotaxis** (Eduardo Izquierdo's
+[CE_orientation](https://github.com/edizquierdo/CE_orientation) model; Izquierdo & Lockery 2010, Izquierdo & Beer 2013). For each:
 
 - an animated body/arena, neural traces, and a phase portrait with flow, nullclines and fixed points
   for any two neurons, all linked to one time cursor (plus equilibria-vs-leg-angle sweeps for sensory walkers,

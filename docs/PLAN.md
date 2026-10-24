@@ -125,6 +125,7 @@ physics, an evaluation function and a body renderer.
 | 4. Generalize | Done: visual categorizer (port tested against the C++), shared `useExplorer` hook and compare card. |
 | 5. Analysis extras | Done so far: equilibria-vs-leg-angle sweeps for sensory walkers, genome map (PCA), IndexedDB autosave. |
 | 6. Oscillator (2026-10-23) | Done: bodiless CTRNN (1–8 neurons), fitness = total output change or target period, center-crossing toggle, cycle table (period / amplitude / phase), spectrum, parameter-space map, RK4 artifact check. Default circuit from SimpleCTRNNMain.cpp. |
+| 7. Chemotaxis (2026-10-23) | Done: port of Izquierdo's CE_orientation klinotaxis worm (WormAgent.cpp, main.cpp genome/fitness), tested against the C++ (`npm run fixtures`, fetched by `scripts/fetch-izquierdo-sources.mjs` at a pinned commit); arena with concentration field, all-runs overview, evolved presets checked at dt/2. |
 
 ### Ideas / next steps
 
@@ -133,7 +134,7 @@ physics, an evaluation function and a body renderer.
 None of these ship in the original C++ package, so each port follows the papers. Verify
 details against the sources before implementing, and add CLI evolution checks like the oscillator's.
 
-1. **Chemotaxis**: 2-D point agent with a chemical sensor climbing a gradient (C. elegans-style
+1. **Chemotaxis** (done, as a port of Izquierdo's CE_orientation): 2-D point agent with a chemical sensor climbing a gradient (C. elegans-style
    klinotaxis). New body: position, heading, sensor at the head; fitness = final/mean distance to peak.
 2. **Visual-body variants** (reuse `src/sim/agents/visual/body.ts`): orientation/pointing, selective
    attention (two falling objects, catch both), relational categorization (is this object larger than

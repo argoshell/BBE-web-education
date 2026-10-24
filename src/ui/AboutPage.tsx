@@ -30,6 +30,13 @@ export function AboutPage() {
           <li>Beer, R.D. (2003). The dynamics of active categorical perception in an evolved model agent. <i>Adaptive Behavior</i> 11(4):209–243.</li>
           <li>C++ implementation by Matthew Setzler (EvolutionaryAgents v1.2).</li>
         </ul>
+        <h3>C. elegans klinotaxis</h3>
+        <ul>
+          <li>Model and C++ code by Eduardo Izquierdo: <a href="https://github.com/edizquierdo/CE_orientation">CE_orientation</a> (built on Beer's CTRNN and TSearch; earlier parts in collaboration with Shawn Lockery and Randall Beer). The code has no license, so it is downloaded for testing, not redistributed.</li>
+          <li>Izquierdo, E.J. and Lockery, S.R. (2010). Evolution and analysis of minimal neural circuits for klinotaxis in <i>Caenorhabditis elegans</i>. <i>J. Neuroscience</i> 30(39):12908–12917.</li>
+          <li>Izquierdo, E.J. and Beer, R.D. (2013). Connecting a connectome to behavior: an ensemble of neuroanatomical models of <i>C. elegans</i> klinotaxis. <i>PLoS Computational Biology</i> 9(2):e1002890.</li>
+          <li>Body, gradient, sensors, network, genome encoding and fitness follow <code>WormAgent.cpp</code> and <code>main.cpp</code> and are tested against them. Differences: <code>pastTheta</code>, uninitialized in the C++, starts at 0; the speed window spans one head sweep at any step size (420 steps at the original 0.01 s); the presets were evolved with this site's TSearch rather than the threaded C++ search.</li>
+        </ul>
         <h3>Differences from the original</h3>
         <ul>
           <li>Search individuals carry ids and parent ids so lineages can be explored.</li>
