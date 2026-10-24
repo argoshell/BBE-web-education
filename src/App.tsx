@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { WalkerPage } from './ui/agents/legged/WalkerPage';
 import { VisualPage } from './ui/agents/visual/VisualPage';
+import { GuidedPage } from './ui/agents/visual/GuidedPage';
 import { OscillatorPage } from './ui/agents/oscillator/OscillatorPage';
 import { AboutPage } from './ui/AboutPage';
 import { parseHash } from './ui/urlState';
@@ -9,6 +10,7 @@ const pages = [
   { id: 'oscillator', label: 'Oscillator', ready: true },
   { id: 'walker', label: 'One-legged walker', ready: true },
   { id: 'visual', label: 'Visual categorizer', ready: true },
+  { id: 'guided', label: 'Visually guided tasks', ready: true },
   { id: 'about', label: 'About', ready: true },
 ];
 
@@ -35,7 +37,7 @@ export default function App() {
         <div className="spacer" />
         <span className="muted small">Web port of Randall Beer's EvolutionaryAgents</span>
       </header>
-      {page === 'about' ? <AboutPage /> : page === 'visual' ? <VisualPage key="visual" /> : page === 'oscillator' ? <OscillatorPage key="oscillator" /> : <WalkerPage key="walker" />}
+      {page === 'about' ? <AboutPage /> : page === 'visual' ? <VisualPage key="visual" /> : page === 'guided' ? <GuidedPage key="guided" /> : page === 'oscillator' ? <OscillatorPage key="oscillator" /> : <WalkerPage key="walker" />}
     </>
   );
 }
