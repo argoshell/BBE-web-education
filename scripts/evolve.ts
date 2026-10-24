@@ -2,6 +2,7 @@
 //   npx tsx scripts/evolve.ts --agent walker --controller cpg --size 5 --pop 96 --gens 250 --seed 1 [--out file.json]
 //   npx tsx scripts/evolve.ts --agent visual --pop 96 --gens 1000 --seed 1 --out visual.json
 //   npx tsx scripts/evolve.ts --agent oscillator --size 3 --cc true --fitness period --period 10
+//   npx tsx scripts/evolve.ts --agent guided --task size|aperture|both --crossover uniform --xprob 0.5 --gens 1000
 // Prints progress to stderr and the best individual's parameters as JSON.
 
 import { writeFileSync } from 'node:fs';
@@ -34,8 +35,19 @@ if (agent.id === 'oscillator') {
     fitness: { kind: args.fitness ?? 'change', targetPeriod: Number(args.period ?? 10) },
   };
 }
+if (agent.id === 'guided') {
+  // main.cpp evolves on 'both'; reduce the grid with --posstep/--sizestep for quicker runs
+  evo = {
+    ...evo,
+    task: args.task ?? 'both',
+    grid: { ...evo.grid, posStep: Number(args.posstep ?? evo.grid.posStep), sizeStep: Number(args.sizestep ?? evo.grid.sizeStep) },
+  };
+}
 const search = {
   ...defaultSearchConfig,
+  // main.cpp of the guided tasks uses uniform crossover with probability 0.5: --crossover uniform --xprob 0.5
+  crossover: (args.crossover ?? defaultSearchConfig.crossover) as 'uniform' | 'twopoint',
+  crossoverProbability: Number(args.xprob ?? defaultSearchConfig.crossoverProbability),
   vectorSize: agent.genomeSize(evo),
   populationSize: Number(args.pop ?? 96),
   maxGenerations: Number(args.gens ?? 250),
