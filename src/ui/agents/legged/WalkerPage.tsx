@@ -6,6 +6,9 @@ import { leggedAgent, type WalkerState } from '../../../sim/agents/legged';
 import { defaultBody } from '../../../sim/agents/legged/body';
 import type { Recording } from '../../../sim/core/recording';
 import { EquilibriumSweep } from '../../components/EquilibriumSweep';
+import { DynamicsCard, type FamilyOption } from '../../components/DynamicsPanel';
+import { rangeAround } from '../../../sim/core/circuitParams';
+import { getParam, paramKeys, paramLabel, setParam } from '../../../sim/core/circuitParams';
 import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait';
 import { TraceStack, type TraceRow } from '../../components/TraceStack';
 import { Transport } from '../../components/Transport';
@@ -56,6 +59,21 @@ export function WalkerPage() {
 
   const sweep = useMemo(() => agent.inputSweep?.(state) ?? null, [state]);
   const fitness = rec.summary.avgVelocity;
+  const nn = state.controller === 'perfect' ? 0 : state.circuit.size;
+  const inputsNow = useMemo(() => Array.from({ length: nn }, (_, i) => rec.channels[`I${i + 1}`][cur]), [rec, nn, cur]);
+  const yNow = useMemo(() => Array.from({ length: nn }, (_, i) => rec.channels[`y${i + 1}`][cur]), [rec, nn, cur]);
+  const families: FamilyOption[] = useMemo(() => {
+    if (nn === 0) return [];
+    const c = state.circuit;
+    const out: FamilyOption[] = [];
+    if (sweep) out.push({ key: 'angle', label: 'leg angle (via the angle sensor)', value: rec.channels.angle[cur], range: sweep.range, family: { circuit: () => c, inputs: sweep.inputs } });
+    for (const key of paramKeys(nn)) out.push({
+      key, label: paramLabel(key), value: getParam(c, key), range: rangeAround(key, getParam(c, key)),
+      family: { circuit: (l: number) => setParam(c, key, l), inputs: () => inputsNow },
+      apply: (v: number) => ex.setState({ ...state, circuit: setParam(c, key, v) }),
+    });
+    return out;
+  }, [state, nn, sweep, inputsNow, ex, rec, cur]);
   const perfectVel = useMemo(() => {
     const p = agent.presets[1].params();
     return agent.simulate({ ...p, body: state.body, run: state.run }).summary.avgVelocity;
@@ -127,6 +145,12 @@ export function WalkerPage() {
               { key: 'angle', label: 'leg angle' }, { key: 'footState', label: 'foot state (stance / swing)' }, { key: 'vx', label: 'body velocity' },
               ...Array.from({ length: state.circuit.size }, (_, i) => ({ key: `o${i + 1}`, label: `neuron o${i + 1}` })),
             ]} />
+        )}
+
+        {nn > 0 && (
+          <DynamicsCard circuit={state.circuit} inputs={inputsNow} state={yNow} families={families}
+            neuronName={(i) => `o${i + 1}`} neuronColor={(i) => neuronColor(theme, i + 1)}
+            note={state.controller === 'sensor' || state.controller === 'one' ? 'Sensory inputs are frozen at their values at the current time; choose "leg angle" to see how the equilibria change as the leg moves.' : 'This controller gets no sensory input, so the circuit is an autonomous system: its limit cycle is the walking rhythm.'} />
         )}
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}

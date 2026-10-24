@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { cycleStats } from '../../../sim/analysis/oscillation';
-import { oscillatorAgent, refinedFitness, setParam, transientIndex, type OscState } from '../../../sim/agents/oscillator';
+import { effectiveCircuit, getParam, oscillatorAgent, paramKeys, paramLabel, refinedFitness, setParam, transientIndex, type OscState } from '../../../sim/agents/oscillator';
+import { DynamicsCard, type FamilyOption } from '../../components/DynamicsPanel';
+import { rangeAround } from '../../../sim/core/circuitParams';
 import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait';
 import { TraceStack, type TraceRow } from '../../components/TraceStack';
 import { Transport } from '../../components/Transport';
@@ -42,6 +44,14 @@ export function OscillatorPage() {
 
   const stats1 = useMemo(() => cycleStats(rec.t, rec.channels.o1, transientIndex(state.run)), [rec, state.run]);
   const refined = useMemo(() => refinedFitness(state), [state]);
+  const circ = useMemo(() => effectiveCircuit(state), [state]);
+  const zeros = useMemo(() => new Array(n).fill(0), [n]);
+  const yNow = useMemo(() => Array.from({ length: n }, (_, i) => rec.channels[`y${i + 1}`][cur]), [rec, n, cur]);
+  const families: FamilyOption[] = useMemo(() => paramKeys(n).map((key) => ({
+    key, label: paramLabel(key), value: getParam(circ, key), range: rangeAround(key, getParam(circ, key)),
+    family: { circuit: (l: number) => setParam(circ, key, l), inputs: () => zeros },
+    apply: (v: number) => ex.setState({ ...state, centerCrossing: key.startsWith('bias') ? false : state.centerCrossing, circuit: setParam(key.startsWith('bias') ? circ : state.circuit, key, v) }),
+  })), [circ, n, zeros, state, ex]);
   const fit = rec.summary.fitness;
   const artifact = Math.abs(refined - fit) > 0.1 * Math.max(Math.abs(fit), 1e-3);
   const pinColors = [theme.series[0], theme.series[1], theme.series[2]];
@@ -123,6 +133,9 @@ export function OscillatorPage() {
             channels={Array.from({ length: n }, (_, i) => ({ key: `o${i + 1}`, label: `o${i + 1}`, color: neuronColor(theme, i + 1) }))}
             targets={Array.from({ length: n }, (_, i) => ({ key: `o${i + 1}`, label: `neuron o${i + 1}` }))} />
         )}
+
+        <DynamicsCard circuit={circ} inputs={zeros} state={yNow} families={families}
+          neuronName={(i) => `n${i + 1}`} neuronColor={(i) => neuronColor(theme, i + 1)} />
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}
