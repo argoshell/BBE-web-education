@@ -3,8 +3,10 @@
 Interactive web ports of Randall Beer's evolutionary agent simulations
 ([EvolutionaryAgents](https://rdbeer.pages.iu.edu/): CTRNN, TSearch, LeggedAgent, …).
 
-Three agents so far: a bodiless **CTRNN oscillator** (central pattern generator), the **one-legged walker**, and the
-**visual categorizer** (Beer 2003). For each:
+Agents so far: a bodiless **CTRNN oscillator** (central pattern generator), the **one-legged walker**, the
+**visual categorizer** (Beer 2003), and the **visually guided tasks** of Eduardo Izquierdo, Randall Beer and Matthew Setzler
+([VisuallyGuidedAgent](https://github.com/edizquierdo/VisuallyGuidedAgent): object-size discrimination and perceiving
+affordances). For each:
 
 - an animated body/arena, neural traces, and a phase portrait with flow, nullclines and fixed points
   for any two neurons, all linked to one time cursor (plus equilibria-vs-leg-angle sweeps for sensory walkers,
@@ -42,6 +44,10 @@ tests compare the TypeScript port against those fixtures: RandomState, CTRNN (Eu
 LeggedAgent step variants, the visual agent and several TSearch runs agree with the C++: random numbers bit-for-bit,
 integrated trajectories to within floating-point rounding (`Math.exp` can differ from the C library's `exp` in the last bit,
 e.g. 3e-16 after thousands of steps; many fixtures, such as the `cpg.ns` walker, still match exactly).
+
+The visually guided tasks are checked the same way against Izquierdo's code (also unlicensed), which
+`scripts/fetch-izquierdo-visual.mjs` downloads at a pinned commit into `reference/visually-guided-agent/`;
+`native/harness/guided_fixtures.cpp` writes `tests/fixtures/visual-tasks.json`.
 
 `npm run fixtures` expects emsdk in `../emsdk` (or set `EMSDK`). In CI, the `reference-fixtures` job rebuilds the
 fixtures and fails if they change.
