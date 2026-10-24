@@ -2,7 +2,8 @@
 //   npx tsx scripts/evolve.ts --agent walker --controller cpg --size 5 --pop 96 --gens 250 --seed 1 [--out file.json]
 //   npx tsx scripts/evolve.ts --agent visual --pop 96 --gens 1000 --seed 1 --out visual.json
 //   npx tsx scripts/evolve.ts --agent oscillator --size 3 --cc true --fitness period --period 10
-//   npx tsx scripts/evolve.ts --agent guided --task size|aperture|both --crossover uniform --xprob 0.5 --gens 1000
+//   npx tsx scripts/evolve.ts --agent guided --task size|aperture|both --xmode uniform --xprob 0.5 --gens 1000
+//   npx tsx scripts/evolve.ts --agent chemotaxis --gens 100 --xprob 0.5 --xmode uniform --elitism 0.1 (main.cpp's settings)
 // Prints progress to stderr and the best individual's parameters as JSON.
 
 import { writeFileSync } from 'node:fs';
@@ -43,17 +44,25 @@ if (agent.id === 'guided') {
     grid: { ...evo.grid, posStep: Number(args.posstep ?? evo.grid.posStep), sizeStep: Number(args.sizestep ?? evo.grid.sizeStep) },
   };
 }
+if (agent.id === 'chemotaxis') {
+  evo = { ...evo, size: Number(args.size ?? evo.size), mode: args.mode === 'kinesis' ? 'kinesis' : 'taxis', run: { ...evo.run, dt: Number(args.dt ?? evo.run.dt) } };
+}
+function isNumeric(v: string | undefined): v is string {
+  return v !== undefined && v.trim() !== '' && Number.isFinite(Number(v));
+}
+
 const search = {
   ...defaultSearchConfig,
-  // main.cpp of the guided tasks uses uniform crossover with probability 0.5: --crossover uniform --xprob 0.5
-  crossover: (args.crossover ?? defaultSearchConfig.crossover) as 'uniform' | 'twopoint',
-  crossoverProbability: Number(args.xprob ?? defaultSearchConfig.crossoverProbability),
   vectorSize: agent.genomeSize(evo),
   populationSize: Number(args.pop ?? 96),
   maxGenerations: Number(args.gens ?? 250),
   seed: Number(args.seed ?? 1),
   mutationVariance: Number(args.mutvar ?? defaultSearchConfig.mutationVariance),
-  reproduction: (args.mode ?? 'ga') as 'ga' | 'hill',
+  reproduction: (args.repro ?? (args.mode === 'hill' ? 'hill' : 'ga')) as 'ga' | 'hill',
+  // Crossover: --xprob <probability> --xmode uniform|twopoint. For compatibility, --crossover accepts either.
+  crossoverProbability: Number(args.xprob ?? (isNumeric(args.crossover) ? args.crossover : defaultSearchConfig.crossoverProbability)),
+  crossover: (args.xmode ?? (args.crossover && !isNumeric(args.crossover) ? args.crossover : defaultSearchConfig.crossover)) as 'uniform' | 'twopoint',
+  elitistFraction: Number(args.elitism ?? defaultSearchConfig.elitistFraction),
 };
 
 const s = new TSearch(search, localEvaluator((g, rs) => agent.evaluate(g, evo, rs)));
