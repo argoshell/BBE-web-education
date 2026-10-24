@@ -60,6 +60,15 @@ export function GuidedPage() {
   const overlays: PhaseOverlay[] = ex.pins.map((p, k) => ({ rec: pinRecs[k], color: pinColors[k], label: p.label }));
   const select = (pos: number, size: number) => { ex.setState({ ...state, trial: { pos, size } }); ex.setIdx(0); };
   const approach = (state.trial.size < BodySize) === (state.task === 'size');
+  // The mirror trial: same position, size reflected about the body width, so it needs the opposite response
+  const mirrorSize = 2 * BodySize - state.trial.size;
+  const mirrorRec = useMemo(() => agent.simulate({ ...state, trial: { ...state.trial, size: mirrorSize } }), [state, mirrorSize]);
+  const [sideBySide, setSideBySide] = useState(true);
+  const verb = (size: number) => ((size < BodySize) === (state.task === 'size') ? (state.task === 'size' ? 'catch' : 'pass through') : 'avoid');
+  const pairItems = [
+    { size: state.trial.size, r: rec, active: true },
+    { size: mirrorSize, r: mirrorRec, active: false },
+  ].sort((p, q) => (verb(p.size) === 'avoid' ? 1 : 0) - (verb(q.size) === 'avoid' ? 1 : 0));
 
   return (
     <div className="page">
@@ -95,7 +104,29 @@ export function GuidedPage() {
             <div className="stat"><span className="v num">{fmt(rec.summary.score, 3)}</span><span className="l">trial score ({approach ? (state.task === 'size' ? 'catch' : 'pass through') : 'avoid'})</span></div>
             <div className="stat"><span className="v num">{fmt(otherFitness, 3)}</span><span className="l">{taskInfo[other].name.toLowerCase()} fitness</span></div>
           </div>
-          <GuidedArena rec={rec} idx={cur} task={state.task} pos={state.trial.pos} size={state.trial.size} />
+          <div className="inline small" style={{ marginBottom: 8 }}>
+            <span className="muted">object at x = {fmt(state.trial.pos, 1)}</span>
+            <div style={{ flex: 1 }} />
+            <label className="chip"><input type="checkbox" checked={sideBySide} onChange={(e) => setSideBySide(e.target.checked)} />show the mirror trial ({state.task === 'size' ? 'circle' : 'gap'} {fmt(mirrorSize, 0)}) side by side</label>
+          </div>
+          {sideBySide && mirrorSize !== state.trial.size ? (
+            <div className="split-2">
+              {pairItems.map(({ size, r, active }) => (
+                <div key={size} onClick={() => !active && select(state.trial.pos, size)}
+                  style={{ cursor: active ? 'default' : 'pointer', outline: active ? `2px solid ${theme.text}` : 'none', outlineOffset: 2, borderRadius: 6 }}>
+                  <div className="inline small" style={{ marginBottom: 4 }}>
+                    <span className="swatch" style={{ background: verb(size) === 'avoid' ? theme.series[1] : theme.series[0] }} />
+                    <b>{state.task === 'size' ? 'Circle' : 'Gap'} {fmt(size, 0)}: should {verb(size)}</b>
+                    <span className="num secondary">final distance {fmt(r.summary.finalDistance, 1)} · score {fmt(r.summary.score, 3)}</span>
+                    <span className="muted">{active ? '(traces below)' : '(click to trace)'}</span>
+                  </div>
+                  <GuidedArena rec={r} idx={Math.min(cur, r.t.length - 1)} task={state.task} pos={state.trial.pos} size={size} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <GuidedArena rec={rec} idx={cur} task={state.task} pos={state.trial.pos} size={state.trial.size} />
+          )}
           <div style={{ marginTop: 8 }}>
             <Transport t={rec.t} idx={cur} onSeek={ex.setIdx} playing={ex.playing} onPlaying={ex.setPlaying}
               speed={ex.speed} onSpeed={ex.setSpeed} window={window} onWindow={ex.setWin} />

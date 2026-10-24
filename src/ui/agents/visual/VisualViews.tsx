@@ -61,7 +61,7 @@ export function VisualArena({ rec, idx, shape, size }: { rec: Recording; idx: nu
       const len = ch[`ray${r + 1}`][i];
       const sx = ax + (BodySize / 2) * Math.sin(theta), sy = (BodySize / 2) * Math.cos(theta);
       const hit = len < MaxRayLength;
-      ctx.strokeStyle = hit ? theme.series[0] : withAlpha(theme.muted, 0.45);
+      ctx.strokeStyle = hit ? theme.text : withAlpha(theme.muted, 0.45);
       ctx.lineWidth = hit ? 1.5 : 1;
       ctx.beginPath();
       ctx.moveTo(X(sx), Y(sy));
@@ -100,32 +100,25 @@ export function VisualArena({ rec, idx, shape, size }: { rec: Recording; idx: nu
 
 const PAD = { l: 46, r: 12, t: 10, b: 34 };
 
-/**
- * All trials at once: horizontal offset (agent − object) against object height. Catching
- * a circle ends near 0; avoiding a line ends far from it. Click a trial to load it.
- */
-export function TrialsOverview({ results, selected, onSelect, maxDistance }: {
+/** One panel of trials (a single shape) on shared axes. */
+function TrialPanel({ results, color, selected, onSelect, maxDistance, xr }: {
   results: TrialResult[];
+  color: string;
   selected: { shape: string; offset: number };
   onSelect: (shape: 'circle' | 'line', offset: number) => void;
   maxDistance: number;
+  xr: [number, number];
 }) {
   const theme = useTheme();
   const [hover, setHover] = useState<number | null>(null);
   const geom = useRef({ w: 0, h: 0 });
-  const xr = useMemo((): [number, number] => {
-    let m = 60;
-    for (const r of results) for (const v of r.relX) m = Math.max(m, Math.abs(v));
-    return [-m * 1.05, m * 1.05];
-  }, [results]);
-  const color = (shape: string) => (shape === 'circle' ? theme.series[0] : theme.series[1]);
 
-  const { boxRef, canvasRef } = useCanvas(300, (ctx, w, h) => {
+  const { boxRef, canvasRef, width } = useCanvas(300, (ctx, w, h) => {
     geom.current = { w, h };
     const x = linear(xr[0], xr[1], PAD.l, w - PAD.r), y = linear(0, 290, h - PAD.b, PAD.t);
     drawYTicks(ctx, y, PAD.l - 6, niceTicks(0, 290, 5), theme.grid, theme.muted, PAD.l, w - PAD.r);
-    drawXAxis(ctx, x, h - PAD.b, PAD.l, w - PAD.r, niceTicks(xr[0], xr[1], 8), theme.axis, theme.muted, 'agent x − object x');
-    // Catch zone
+    drawXAxis(ctx, x, h - PAD.b, PAD.l, w - PAD.r, niceTicks(xr[0], xr[1], 6), theme.axis, theme.muted, 'agent x − object x');
+    // Catch zone (within a body width) and the scoring limits
     ctx.fillStyle = withAlpha(theme.series[0], 0.08);
     ctx.fillRect(x(-BodySize / 2), PAD.t, x(BodySize / 2) - x(-BodySize / 2), h - PAD.t - PAD.b);
     ctx.strokeStyle = theme.axis;
@@ -137,7 +130,7 @@ export function TrialsOverview({ results, selected, onSelect, maxDistance }: {
     }
     results.forEach((r, k) => {
       const sel = r.shape === selected.shape && Math.abs(r.offset - selected.offset) < 1e-9;
-      ctx.strokeStyle = color(r.shape);
+      ctx.strokeStyle = color;
       ctx.globalAlpha = hover === null || hover === k || sel ? 1 : 0.35;
       ctx.lineWidth = sel || hover === k ? 2.5 : 1.25;
       ctx.beginPath();
@@ -145,7 +138,7 @@ export function TrialsOverview({ results, selected, onSelect, maxDistance }: {
       ctx.stroke();
       ctx.globalAlpha = 1;
     });
-  }, [results, selected, hover, theme, xr, maxDistance]);
+  }, [results, selected, hover, theme, xr, maxDistance, color]);
 
   const nearest = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -160,10 +153,42 @@ export function TrialsOverview({ results, selected, onSelect, maxDistance }: {
     });
     return best;
   };
-
-  const circles = results.filter((r) => r.shape === 'circle'), lines = results.filter((r) => r.shape === 'line');
-  const mean = (a: TrialResult[]) => a.reduce((s, r) => s + r.score, 0) / Math.max(1, a.length);
   const hr = hover !== null ? results[hover] : null;
+  return (
+    <div ref={boxRef} className="canvas-box">
+      <canvas ref={canvasRef} style={{ cursor: 'pointer' }}
+        onMouseMove={(e) => { const k = nearest(e); setHover(k >= 0 ? k : null); }}
+        onMouseLeave={() => setHover(null)}
+        onClick={(e) => { const k = nearest(e); if (k >= 0) onSelect(results[k].shape, results[k].offset); }} />
+      {hr && (
+        <div className="tooltip num" style={{ left: Math.min(60, width - 200), top: 10 }}>
+          {hr.shape} from offset {fmt(hr.offset, 1)}<br />final Δx {fmt(hr.finalDx, 1)} · score {fmt(hr.score, 3)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * All trials, split into catch trials (circles) and avoid trials (lines): horizontal offset
+ * (agent − object) against object height, on shared axes. Catching ends near 0; avoiding ends
+ * far from it. Click a trial to load it.
+ */
+export function TrialsOverview({ results, selected, onSelect, maxDistance }: {
+  results: TrialResult[];
+  selected: { shape: string; offset: number };
+  onSelect: (shape: 'circle' | 'line', offset: number) => void;
+  maxDistance: number;
+}) {
+  const theme = useTheme();
+  const xr = useMemo((): [number, number] => {
+    let m = 60;
+    for (const r of results) for (const v of r.relX) m = Math.max(m, Math.abs(v));
+    return [-m * 1.05, m * 1.05];
+  }, [results]);
+  const circles = useMemo(() => results.filter((r) => r.shape === 'circle'), [results]);
+  const lines = useMemo(() => results.filter((r) => r.shape === 'line'), [results]);
+  const mean = (a: TrialResult[]) => a.reduce((s, r) => s + r.score, 0) / Math.max(1, a.length);
   return (
     <div>
       <div className="stats" style={{ marginBottom: 6 }}>
@@ -171,21 +196,16 @@ export function TrialsOverview({ results, selected, onSelect, maxDistance }: {
         <div className="stat"><span className="v num">{fmt(mean(circles), 3)}</span><span className="l">circles caught</span></div>
         <div className="stat"><span className="v num">{fmt(mean(lines), 3)}</span><span className="l">lines avoided</span></div>
       </div>
-      <div className="legend" style={{ marginBottom: 4 }}>
-        <span className="chip"><span className="swatch" style={{ background: theme.series[0] }} />circle trials (catch)</span>
-        <span className="chip"><span className="swatch" style={{ background: theme.series[1] }} />line trials (avoid)</span>
-        <span className="muted small">shaded: within a body width · rules: ±{maxDistance} scoring limit · click a trial to load it</span>
-      </div>
-      <div ref={boxRef} className="canvas-box">
-        <canvas ref={canvasRef} style={{ cursor: 'pointer' }}
-          onMouseMove={(e) => setHover(nearest(e) >= 0 ? nearest(e) : null)}
-          onMouseLeave={() => setHover(null)}
-          onClick={(e) => { const k = nearest(e); if (k >= 0) onSelect(results[k].shape, results[k].offset); }} />
-        {hr && (
-          <div className="tooltip num" style={{ left: 60, top: 10 }}>
-            {hr.shape} from offset {fmt(hr.offset, 1)}<br />final Δx {fmt(hr.finalDx, 1)} · score {fmt(hr.score, 3)}
-          </div>
-        )}
+      <p className="muted small" style={{ marginBottom: 6 }}>Shaded: within a body width of the object · vertical rules: ±{maxDistance} scoring limit · click a trial to load it.</p>
+      <div className="split-2">
+        <div>
+          <h3 className="inline" style={{ marginBottom: 4 }}><span className="swatch" style={{ background: theme.series[0] }} />Circle trials: catch ({circles.length}, score {fmt(mean(circles), 3)})</h3>
+          <TrialPanel results={circles} color={theme.series[0]} selected={selected} onSelect={onSelect} maxDistance={maxDistance} xr={xr} />
+        </div>
+        <div>
+          <h3 className="inline" style={{ marginBottom: 4 }}><span className="swatch" style={{ background: theme.series[1] }} />Line trials: avoid ({lines.length}, score {fmt(mean(lines), 3)})</h3>
+          <TrialPanel results={lines} color={theme.series[1]} selected={selected} onSelect={onSelect} maxDistance={maxDistance} xr={xr} />
+        </div>
       </div>
     </div>
   );

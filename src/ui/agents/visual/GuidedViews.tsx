@@ -1,7 +1,7 @@
 // Views for the visually guided tasks (Izquierdo, Beer & Setzler): the arena with a falling circle
 // or aperture, an overview of every trial, and a score map over the (position, size) grid.
 
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { BodySize, MaxRayLength, VisualAngle } from '../../../sim/agents/visual/body';
 import { NUMRAYS, OBJECTHEIGHT, STARTHEIGHT, taskInfo, type GuidedTask, type GuidedTrialResult } from '../../../sim/agents/visual/guided';
 import type { Recording } from '../../../sim/core/recording';
@@ -61,7 +61,7 @@ export function GuidedArena({ rec, idx, task, pos, size }: { rec: Recording; idx
       const len = ch[`ray${r + 1}`][i];
       const sx = ax + (BodySize / 2) * Math.sin(theta), sy = (BodySize / 2) * Math.cos(theta);
       const hit = len < MaxRayLength;
-      ctx.strokeStyle = hit ? theme.series[0] : withAlpha(theme.muted, 0.45);
+      ctx.strokeStyle = hit ? theme.text : withAlpha(theme.muted, 0.45);
       ctx.lineWidth = hit ? 1.25 : 0.75;
       ctx.beginPath();
       ctx.moveTo(X(sx), Y(sy));
@@ -115,34 +115,24 @@ function approachTrial(task: GuidedTask, size: number): boolean {
   return (size < BodySize) === (task === 'size');
 }
 
-/**
- * Every trial at once: agent x − object x against object height, colored by the required response.
- * Approach trials (catch a small circle, pass a wide aperture) should end near 0. Click a trial to load it.
- */
-export function GuidedTrialsOverview({ results, task, selected, onSelect, maxDistance }: {
+/** One panel of trials on shared axes. */
+function GuidedTrialPanel({ results, color, isSel, onSelect, maxDistance, xr, task }: {
   results: GuidedTrialResult[];
-  task: GuidedTask;
-  selected: { pos: number; size: number };
+  color: string;
+  isSel: (r: GuidedTrialResult) => boolean;
   onSelect: (pos: number, size: number) => void;
   maxDistance: number;
+  xr: [number, number];
+  task: GuidedTask;
 }) {
   const theme = useTheme();
   const [hover, setHover] = useState<number | null>(null);
   const geom = useRef({ w: 0, h: 0 });
-  const xr = useMemo((): [number, number] => {
-    let m = 60;
-    for (const r of results) for (const v of r.relX) m = Math.max(m, Math.abs(v));
-    return [-m * 1.05, m * 1.05];
-  }, [results]);
-  const info = taskInfo[task];
-  const color = (r: GuidedTrialResult) => (approachTrial(task, r.size) ? theme.series[0] : theme.series[1]);
-  const isSel = (r: GuidedTrialResult) => Math.abs(r.pos - selected.pos) < 1e-9 && Math.abs(r.size - selected.size) < 1e-9;
-
-  const { boxRef, canvasRef } = useCanvas(300, (ctx, w, h) => {
+  const { boxRef, canvasRef, width } = useCanvas(300, (ctx, w, h) => {
     geom.current = { w, h };
     const x = linear(xr[0], xr[1], PAD.l, w - PAD.r), y = linear(0, 250, h - PAD.b, PAD.t);
     drawYTicks(ctx, y, PAD.l - 6, niceTicks(0, 250, 5), theme.grid, theme.muted, PAD.l, w - PAD.r);
-    drawXAxis(ctx, x, h - PAD.b, PAD.l, w - PAD.r, niceTicks(xr[0], xr[1], 8), theme.axis, theme.muted, 'agent x − object x');
+    drawXAxis(ctx, x, h - PAD.b, PAD.l, w - PAD.r, niceTicks(xr[0], xr[1], 6), theme.axis, theme.muted, 'agent x − object x');
     ctx.fillStyle = withAlpha(theme.series[0], 0.08);
     ctx.fillRect(x(-BodySize / 2), PAD.t, x(BodySize / 2) - x(-BodySize / 2), h - PAD.t - PAD.b);
     ctx.strokeStyle = theme.axis;
@@ -154,56 +144,84 @@ export function GuidedTrialsOverview({ results, task, selected, onSelect, maxDis
     }
     results.forEach((r, k) => {
       const sel = isSel(r);
-      ctx.strokeStyle = color(r);
+      ctx.strokeStyle = color;
       ctx.globalAlpha = hover === null || hover === k || sel ? 0.9 : 0.25;
       ctx.lineWidth = sel || hover === k ? 2.5 : 1;
       ctx.beginPath();
-      for (let s = 0; s < r.relX.length; s++) (s ? ctx.lineTo : ctx.moveTo).call(ctx, x(r.relX[s]), y(r.objY[s]));
+      for (let q = 0; q < r.relX.length; q++) (q ? ctx.lineTo : ctx.moveTo).call(ctx, x(r.relX[q]), y(r.objY[q]));
       ctx.stroke();
       ctx.globalAlpha = 1;
     });
-  }, [results, selected, hover, theme, xr, maxDistance, task]);
-
+  }, [results, hover, theme, xr, maxDistance, color, isSel]);
   const nearest = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const x = linear(xr[0], xr[1], PAD.l, geom.current.w - PAD.r), y = linear(0, 250, geom.current.h - PAD.b, PAD.t);
     let best = -1, bd = 120;
     results.forEach((r, k) => {
-      for (let s = 0; s < r.relX.length; s += 2) {
-        const d = (x(r.relX[s]) - mx) ** 2 + (y(r.objY[s]) - my) ** 2;
+      for (let q = 0; q < r.relX.length; q += 2) {
+        const d = (x(r.relX[q]) - mx) ** 2 + (y(r.objY[q]) - my) ** 2;
         if (d < bd) { bd = d; best = k; }
       }
     });
     return best;
   };
-
-  const small = results.filter((r) => r.size < BodySize), large = results.filter((r) => r.size > BodySize);
-  const mean = (a: GuidedTrialResult[]) => a.reduce((s, r) => s + r.score, 0) / Math.max(1, a.length);
   const hr = hover !== null ? results[hover] : null;
-  const what = task === 'size' ? 'circles' : 'apertures';
+  return (
+    <div ref={boxRef} className="canvas-box">
+      <canvas ref={canvasRef} style={{ cursor: 'pointer' }}
+        onMouseMove={(e) => { const k = nearest(e); setHover(k >= 0 ? k : null); }}
+        onMouseLeave={() => setHover(null)}
+        onClick={(e) => { const k = nearest(e); if (k >= 0) onSelect(results[k].pos, results[k].size); }} />
+      {hr && (
+        <div className="tooltip num" style={{ left: Math.min(60, width - 200), top: 10 }}>
+          {task === 'size' ? 'circle' : 'gap'} {fmt(hr.size, 1)} at x = {fmt(hr.pos, 1)}<br />final Δx {fmt(hr.finalDx, 1)} · score {fmt(hr.score, 3)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Every trial, split by the required response: approach trials (catch a small circle, pass a
+ * wide aperture) should end near 0; avoid trials far from it. Shared axes; click a trial to load it.
+ */
+export function GuidedTrialsOverview({ results, task, selected, onSelect, maxDistance }: {
+  results: GuidedTrialResult[];
+  task: GuidedTask;
+  selected: { pos: number; size: number };
+  onSelect: (pos: number, size: number) => void;
+  maxDistance: number;
+}) {
+  const theme = useTheme();
+  const xr = useMemo((): [number, number] => {
+    let m = 60;
+    for (const r of results) for (const v of r.relX) m = Math.max(m, Math.abs(v));
+    return [-m * 1.05, m * 1.05];
+  }, [results]);
+  const isSel = useCallback((r: GuidedTrialResult) => Math.abs(r.pos - selected.pos) < 1e-9 && Math.abs(r.size - selected.size) < 1e-9, [selected.pos, selected.size]);
+  const approach = useMemo(() => results.filter((r) => approachTrial(task, r.size)), [results, task]);
+  const avoid = useMemo(() => results.filter((r) => !approachTrial(task, r.size)), [results, task]);
+  const mean = (a: GuidedTrialResult[]) => a.reduce((q, r) => q + r.score, 0) / Math.max(1, a.length);
+  const approachLabel = task === 'size' ? 'Small circles (< body): catch' : 'Wide gaps (> body): pass through';
+  const avoidLabel = task === 'size' ? 'Large circles (> body): avoid' : 'Narrow gaps (< body): avoid';
   return (
     <div>
       <div className="stats" style={{ marginBottom: 6 }}>
         <div className="stat"><span className="v num">{fmt(mean(results), 3)}</span><span className="l">task fitness (mean score)</span></div>
-        <div className="stat"><span className="v num">{fmt(mean(small), 3)}</span><span className="l">{task === 'size' ? 'small' : 'narrow'} {what}: {info.small}</span></div>
-        <div className="stat"><span className="v num">{fmt(mean(large), 3)}</span><span className="l">{task === 'size' ? 'large' : 'wide'} {what}: {info.large}</span></div>
+        <div className="stat"><span className="v num">{fmt(mean(approach), 3)}</span><span className="l">{task === 'size' ? 'catch' : 'pass through'} trials</span></div>
+        <div className="stat"><span className="v num">{fmt(mean(avoid), 3)}</span><span className="l">avoid trials</span></div>
       </div>
-      <div className="legend" style={{ marginBottom: 4 }}>
-        <span className="chip"><span className="swatch" style={{ background: theme.series[0] }} />{task === 'size' ? 'circle < body (catch)' : 'gap > body (pass through)'}</span>
-        <span className="chip"><span className="swatch" style={{ background: theme.series[1] }} />{task === 'size' ? 'circle > body (avoid)' : 'gap < body (avoid)'}</span>
-        <span className="muted small">shaded: within a body width · rules: ±{maxDistance} scoring limit · click a trial to load it</span>
-      </div>
-      <div ref={boxRef} className="canvas-box">
-        <canvas ref={canvasRef} style={{ cursor: 'pointer' }}
-          onMouseMove={(e) => { const k = nearest(e); setHover(k >= 0 ? k : null); }}
-          onMouseLeave={() => setHover(null)}
-          onClick={(e) => { const k = nearest(e); if (k >= 0) onSelect(results[k].pos, results[k].size); }} />
-        {hr && (
-          <div className="tooltip num" style={{ left: 60, top: 10 }}>
-            {task === 'size' ? 'circle' : 'gap'} {fmt(hr.size, 1)} at x = {fmt(hr.pos, 1)}<br />final Δx {fmt(hr.finalDx, 1)} · score {fmt(hr.score, 3)}
-          </div>
-        )}
+      <p className="muted small" style={{ marginBottom: 6 }}>Shaded: within a body width · vertical rules: ±{maxDistance} scoring limit · click a trial to load it.</p>
+      <div className="split-2">
+        <div>
+          <h3 className="inline" style={{ marginBottom: 4 }}><span className="swatch" style={{ background: theme.series[0] }} />{approachLabel} ({approach.length}, score {fmt(mean(approach), 3)})</h3>
+          <GuidedTrialPanel results={approach} color={theme.series[0]} isSel={isSel} onSelect={onSelect} maxDistance={maxDistance} xr={xr} task={task} />
+        </div>
+        <div>
+          <h3 className="inline" style={{ marginBottom: 4 }}><span className="swatch" style={{ background: theme.series[1] }} />{avoidLabel} ({avoid.length}, score {fmt(mean(avoid), 3)})</h3>
+          <GuidedTrialPanel results={avoid} color={theme.series[1]} isSel={isSel} onSelect={onSelect} maxDistance={maxDistance} xr={xr} task={task} />
+        </div>
       </div>
     </div>
   );

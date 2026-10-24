@@ -39,6 +39,12 @@ export function VisualPage() {
   const [showStates, setShowStates] = useState(false);
   const [compareInPhase, setCompareInPhase] = useState(true);
   const results = useMemo(() => runAllTrials(state), [state]);
+  // The same start with the other shape, so catch and avoid can be watched side by side
+  const pair = useMemo(() => {
+    const other = agent.simulate({ ...state, trial: { ...state.trial, shape: state.trial.shape === 'circle' ? 'line' : 'circle' } });
+    return state.trial.shape === 'circle' ? { circle: rec, line: other } : { circle: other, line: rec };
+  }, [state, rec]);
+  const [sideBySide, setSideBySide] = useState(true);
 
   const rows: TraceRow[] = useMemo(() => {
     const out: TraceRow[] = [];
@@ -71,11 +77,38 @@ export function VisualPage() {
             <span className="muted small">{agent.citation}</span>
           </div>
           <LoadedBanner loaded={ex.loaded} onPin={ex.pin} onRevert={ex.selectIndividual} />
-          <div className="stats" style={{ marginBottom: 8 }}>
-            <div className="stat"><span className="v num">{fmt(rec.summary.finalDx, 1)}</span><span className="l">final Δx this trial</span></div>
-            <div className="stat"><span className="v num">{fmt(rec.summary.score, 3)}</span><span className="l">trial score ({state.trial.shape === 'circle' ? 'catch' : 'avoid'})</span></div>
+          <div className="inline small" style={{ marginBottom: 8 }}>
+            <span className="muted">object starts {fmt(state.trial.offset, 1)} from the agent</span>
+            <div style={{ flex: 1 }} />
+            <label className="chip"><input type="checkbox" checked={sideBySide} onChange={(e) => setSideBySide(e.target.checked)} />catch and avoid side by side</label>
           </div>
-          <VisualArena rec={rec} idx={cur} shape={state.trial.shape} size={state.trial.size} />
+          {sideBySide ? (
+            <div className="split-2">
+              {(['circle', 'line'] as const).map((shape) => {
+                const r = pair[shape], active = state.trial.shape === shape;
+                return (
+                  <div key={shape} onClick={() => !active && ex.setState({ ...state, trial: { ...state.trial, shape } })}
+                    style={{ cursor: active ? 'default' : 'pointer', outline: active ? `2px solid ${theme.text}` : 'none', outlineOffset: 2, borderRadius: 6 }}>
+                    <div className="inline small" style={{ marginBottom: 4 }}>
+                      <span className="swatch" style={{ background: shape === 'circle' ? theme.series[0] : theme.series[1] }} />
+                      <b>{shape === 'circle' ? 'Circle: should catch' : 'Line: should avoid'}</b>
+                      <span className="num secondary">final Δx {fmt(r.summary.finalDx, 1)} · score {fmt(r.summary.score, 3)}</span>
+                      <span className="muted">{active ? '(traces below)' : '(click to trace)'}</span>
+                    </div>
+                    <VisualArena rec={r} idx={Math.min(cur, r.t.length - 1)} shape={shape} size={state.trial.size} />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              <div className="stats" style={{ marginBottom: 8 }}>
+                <div className="stat"><span className="v num">{fmt(rec.summary.finalDx, 1)}</span><span className="l">final Δx this trial</span></div>
+                <div className="stat"><span className="v num">{fmt(rec.summary.score, 3)}</span><span className="l">trial score ({state.trial.shape === 'circle' ? 'catch' : 'avoid'})</span></div>
+              </div>
+              <VisualArena rec={rec} idx={cur} shape={state.trial.shape} size={state.trial.size} />
+            </>
+          )}
           <div style={{ marginTop: 8 }}>
             <Transport t={rec.t} idx={cur} onSeek={ex.setIdx} playing={ex.playing} onPlaying={ex.setPlaying}
               speed={ex.speed} onSpeed={ex.setSpeed} window={window} onWindow={ex.setWin} />

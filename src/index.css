@@ -196,3 +196,5 @@ table.data tr.sel { background: var(--surface-2); }
 .progress > div { height: 100%; background: var(--accent); }
 .note { font-size: 12px; color: var(--text-secondary); background: var(--surface-2); border-radius: 6px; padding: 6px 8px; }
 .error { color: var(--critical); }
+.split-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 700px) { .split-2 { grid-template-columns: minmax(0, 1fr); } }
