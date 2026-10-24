@@ -1,5 +1,6 @@
 // Port of the visual categorization agent (VisualAgent.cpp, VisualObject.h; Matthew Setzler's
-// implementation of Beer 2003 in EvolutionaryAgents v1.2). Indices are 0-based.
+// implementation of Beer 2003 in EvolutionaryAgents v1.2), plus the variant used by Izquierdo's
+// VisuallyGuidedAgent tasks (GuidedAgent, Aperture; bottom of file). Indices are 0-based.
 //
 // The agent sits at y = 0 and moves horizontally. Seven rays fan upward over a 30° visual
 // angle; each ray's input to sensory neuron i is InputGain * (MaxRayLength - length) / MaxRayLength.
@@ -103,12 +104,26 @@ function resetRay(ray: Ray, theta: number, cx: number, cy: number): void {
   ray.startY = cy + (BodySize / 2) * Math.cos(theta);
 }
 
+/** Fan the rays evenly over the visual angle, as VisualAgent::ResetRays does. */
+export function resetRays(rays: Ray[], cx: number, cy: number): void {
+  const n = rays.length;
+  let theta = -VisualAngle / 2;
+  for (let i = 0; i < n; i++) {
+    resetRay(rays[i], theta, cx, cy);
+    theta += VisualAngle / (n - 1);
+  }
+}
+
+export function makeRays(n: number): Ray[] {
+  return Array.from({ length: n }, () => ({ m: 0, b: 0, startX: 0, startY: 0, length: MaxRayLength }));
+}
+
 export class VisualAgent {
   cx = 0;
   cy = 0;
   vx = 0;
   nervousSystem: CTRNN;
-  rays: Ray[] = Array.from({ length: NumRays }, () => ({ m: 0, b: 0, startX: 0, startY: 0, length: MaxRayLength }));
+  rays: Ray[] = makeRays(NumRays);
 
   constructor(ns: CTRNN) {
     this.nervousSystem = ns;
@@ -129,11 +144,7 @@ export class VisualAgent {
   }
 
   resetRays(): void {
-    let theta = -VisualAngle / 2;
-    for (let i = 0; i < NumRays; i++) {
-      resetRay(this.rays[i], theta, this.cx, this.cy);
-      theta += VisualAngle / (NumRays - 1);
-    }
+    resetRays(this.rays, this.cx, this.cy);
   }
 
   step(dt: number, object: VisualObject): void {
@@ -145,6 +156,117 @@ export class VisualAgent {
     }
     ns.eulerStep(dt);
     this.vx = VelGain * (ns.outputs[12] - ns.outputs[13]);
+    this.cx = this.cx + dt * this.vx;
+    if (this.cx < -EnvWidth / 2) this.cx = -EnvWidth / 2;
+    else if (this.cx > EnvWidth / 2) this.cx = EnvWidth / 2;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Variant from Eduardo Izquierdo's VisuallyGuidedAgent (with Randall Beer and Matthew Setzler;
+// github.com/edizquierdo/VisuallyGuidedAgent). Geometry and objects are the same, but the rays
+// are not neurons: each ray's input, (MaxRayLength - length) / MaxRayLength, feeds the interneurons
+// through a sensor weight matrix. The CTRNN holds only the interneurons and the two motor neurons,
+// and vx = GuidedVelGain * (o[M1] - o[M2]). (Its VisualObject also has a heading angle, always 0 in
+// the tasks, which makes its Step identical to the one above.)
+
+export const GuidedInputGain = 1.0;
+export const GuidedVelGain = 8.0;
+
+/** Anything the rays can hit. */
+export interface Sensed {
+  rayIntersection(ray: Ray): void;
+}
+
+/**
+ * Izquierdo's affordance stimulus: two horizontal line segments (each `segment` wide) falling
+ * together and leaving a gap of width `gap` centered at `center`.
+ */
+export class Aperture implements Sensed {
+  left: VisualObject;
+  right: VisualObject;
+  gap: number;
+  center: number;
+
+  constructor(center: number, gap: number, iy: number, vy = -3.0, segment = 30.0) {
+    this.center = center;
+    this.gap = gap;
+    this.right = new VisualObject('line', gap / 2 + segment / 2.0 + center, iy, vy, segment);
+    this.left = new VisualObject('line', -(gap / 2) - segment / 2.0 + center, iy, vy, segment);
+  }
+
+  get cy(): number {
+    return this.left.cy;
+  }
+
+  step(dt: number): void {
+    this.left.step(dt);
+    this.right.step(dt);
+  }
+
+  rayIntersection(ray: Ray): void {
+    this.left.rayIntersection(ray);
+    this.right.rayIntersection(ray);
+  }
+}
+
+export class GuidedAgent {
+  cx = 0;
+  cy = 0;
+  vx = 0;
+  readonly numRays: number;
+  readonly numInter: number;
+  nervousSystem: CTRNN;
+  /** Row-major by ray: sensorWeights[ray * numInter + inter]. */
+  sensorWeights: Float64Array;
+  /** Ray inputs used on the last step. */
+  inputs: Float64Array;
+  rays: Ray[];
+
+  constructor(ns: CTRNN, sensorWeights: ArrayLike<number>, numRays: number, numInter: number) {
+    this.nervousSystem = ns;
+    this.numRays = numRays;
+    this.numInter = numInter;
+    this.sensorWeights = Float64Array.from(sensorWeights);
+    this.inputs = new Float64Array(numRays);
+    this.rays = makeRays(numRays);
+  }
+
+  setPositionX(x: number): void {
+    this.cx = x;
+    this.resetRays();
+  }
+
+  /** Reset(ix, iy, 0): neuron states set to 0 (RandomizeCircuitState(0, 0)). */
+  reset(ix: number, iy: number): void {
+    this.cx = ix;
+    this.cy = iy;
+    this.vx = 0;
+    const ns = this.nervousSystem;
+    for (let i = 0; i < ns.size; i++) ns.setNeuronState(i, 0.0);
+    this.resetRays();
+  }
+
+  resetRays(): void {
+    resetRays(this.rays, this.cx, this.cy);
+  }
+
+  /** Step (one object) or Step2 (two objects, e.g. an aperture's lines). */
+  step(dt: number, objects: readonly Sensed[]): void {
+    this.resetRays();
+    const ns = this.nervousSystem, nr = this.numRays, ni = this.numInter, sw = this.sensorWeights;
+    for (let i = 0; i < nr; i++) {
+      for (const o of objects) o.rayIntersection(this.rays[i]);
+      this.inputs[i] = (GuidedInputGain * (MaxRayLength - this.rays[i].length)) / MaxRayLength;
+    }
+    for (let j = 0; j < ni; j++) {
+      let net = 0.0;
+      for (let i = 0; i < nr; i++) net += sw[i * ni + j] * this.inputs[i];
+      ns.externalInputs[j] = net;
+    }
+    ns.eulerStep(dt);
+    const n = ns.size;
+    this.vx = GuidedVelGain * (ns.outputs[n - 2] - ns.outputs[n - 1]);
     this.cx = this.cx + dt * this.vx;
     if (this.cx < -EnvWidth / 2) this.cx = -EnvWidth / 2;
     else if (this.cx > EnvWidth / 2) this.cx = EnvWidth / 2;

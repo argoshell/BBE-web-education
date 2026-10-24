@@ -28,7 +28,15 @@ em++ "${FLAGS[@]}" "$SRC/CTRNN.cpp" "$SRC/VisualAgent.cpp" "$SRC/random.cpp" \
   "$ROOT/native/harness/visual_fixtures.cpp" -o "$OUT/visual_fixtures.cjs"
 (cd "$SRC" && node "$OUT/visual_fixtures.cjs") > "$ROOT/tests/fixtures/visual.json"
 
-for f in reference visual; do
+# Izquierdo/Beer/Setzler VisuallyGuidedAgent: size discrimination and perceiving affordances
+IZQ="$ROOT/reference/visually-guided-agent"
+[ -f "$IZQ/main.cpp" ] || node "$ROOT/scripts/fetch-izquierdo-visual.mjs"
+em++ -O2 -std=c++14 -w -I"$IZQ" -sENVIRONMENT=node -sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=4MB \
+  "$IZQ/CTRNN.cpp" "$IZQ/VisualAgent.cpp" "$IZQ/TSearch.cpp" "$IZQ/random.cpp" \
+  "$ROOT/native/harness/guided_fixtures.cpp" -o "$OUT/guided_fixtures.cjs"
+node "$OUT/guided_fixtures.cjs" > "$ROOT/tests/fixtures/visual-tasks.json"
+
+for f in reference visual visual-tasks; do
   node -e "const j=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); console.log(process.argv[2]+':', Object.keys(j).join(', '))" \
     "$ROOT/tests/fixtures/$f.json" "$f"
 done

@@ -125,6 +125,7 @@ physics, an evaluation function and a body renderer.
 | 4. Generalize | Done: visual categorizer (port tested against the C++), shared `useExplorer` hook and compare card. |
 | 5. Analysis extras | Done so far: equilibria-vs-leg-angle sweeps for sensory walkers, genome map (PCA), IndexedDB autosave. |
 | 6. Oscillator (2026-10-23) | Done: bodiless CTRNN (1–8 neurons), fitness = total output change or target period, center-crossing toggle, cycle table (period / amplitude / phase), spectrum, parameter-space map, RK4 artifact check. Default circuit from SimpleCTRNNMain.cpp. |
+| 7. Visually guided tasks (2026-10-23) | Done: Izquierdo/Beer/Setzler VisuallyGuidedAgent (`guided` page): size discrimination and perceiving affordances (apertures), 15-ray agent with sensor-weight layer and symmetric 100-gene genome, tested against the C++ (fetched at a pinned commit, never committed). Evolved presets: size 1.000, affordances 1.000, both (product) 0.928. |
 
 ### Ideas / next steps
 

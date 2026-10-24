@@ -30,12 +30,17 @@ export function AboutPage() {
           <li>Beer, R.D. (2003). The dynamics of active categorical perception in an evolved model agent. <i>Adaptive Behavior</i> 11(4):209–243.</li>
           <li>C++ implementation by Matthew Setzler (EvolutionaryAgents v1.2).</li>
         </ul>
+        <h3>Visually guided tasks</h3>
+        <ul>
+          <li>Izquierdo, E.J., Beer, R.D. and Setzler, M. <a href="https://github.com/edizquierdo/VisuallyGuidedAgent" target="_blank" rel="noreferrer">VisuallyGuidedAgent</a>: object-size discrimination and perceiving affordances (C++; agent by Matthew Setzler and Eduardo Izquierdo). Ported from commit df626ab, which carries no license, so it is fetched for testing and not redistributed.</li>
+        </ul>
         <h3>Differences from the original</h3>
         <ul>
           <li>Search individuals carry ids and parent ids so lineages can be explored.</li>
           <li>The "CTRNN + angle sensor" controller is new: <code>Step</code> with leg-angle input Iᵢ = sᵢ·angle/30° to every neuron.</li>
           <li>Crossover decisions use a dedicated random stream seeded like the C++ global state, so runs are reproducible from the seed.</li>
           <li>The visual agent's fitness (catch circles, avoid lines; distance clipped at 45) and its symmetric genome follow Beer (2003); the C++ package ships no fitness function for it.</li>
+          <li>The visually guided tasks follow Izquierdo's <code>main.cpp</code> exactly (trial grid, scores, product fitness for both tasks, symmetric genome). Identical repetitions are scored once and counted twice, and evolution in the browser defaults to this site's search settings (main.cpp uses uniform crossover with probability 0.5).</li>
           <li>The oscillator's fitness functions (average output change, or amplitude × closeness to a target period) are this site's, after the oscillation measures in the papers above.</li>
           <li>Phase portrait nullclines and fixed points are computed for 2-neuron slices with the other neurons frozen at the current instant.</li>
         </ul>
