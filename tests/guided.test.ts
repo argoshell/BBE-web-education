@@ -81,3 +81,25 @@ describe('guided presets', () => {
     }
   });
 });
+
+import { loadedPreset, presetStateFor } from '../src/sim/agents/visual/guided';
+
+describe('guided task presets', () => {
+  it('each task has its own specialist preset that solves the reported case (gap 36 at x = 10)', () => {
+    const aperture = presetStateFor('aperture')!;
+    const pass = guidedAgent.simulate({ ...aperture, trial: { pos: 10, size: 36 } });
+    expect(pass.summary.score).toBeGreaterThan(0.95);
+    const avoid = guidedAgent.simulate({ ...aperture, trial: { pos: 10, size: 24 } });
+    expect(avoid.summary.score).toBeGreaterThan(0.95);
+    // The size specialist was not evolved for apertures and avoids the wide gap
+    const size = presetStateFor('size')!;
+    expect(guidedAgent.simulate({ ...size, task: 'aperture', trial: { pos: 10, size: 36 } }).summary.score).toBeLessThan(0.5);
+  });
+
+  it('recognizes an unmodified preset circuit, but not an edited one', () => {
+    const size = presetStateFor('size')!;
+    expect(loadedPreset(size)?.task).toBe('size');
+    const edited = { ...size, circuit: { ...size.circuit, taus: size.circuit.taus.map((t, i) => (i === 0 ? t + 1e-3 : t)) } };
+    expect(loadedPreset(edited)).toBeUndefined();
+  });
+});

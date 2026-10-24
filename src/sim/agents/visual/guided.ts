@@ -370,3 +370,18 @@ export const guidedAgent: AgentModule<GuidedState, GuidedEvoConfig> = {
 export function guidedColorSlot(i: number): number {
   return i < 8 ? i + 1 : 0;
 }
+
+function sameController(a: GuidedController, s: GuidedController): boolean {
+  return (Object.keys(a) as (keyof GuidedController)[]).every((k) => JSON.stringify(a[k]) === JSON.stringify(s[k]));
+}
+
+/** The evolved preset whose circuit is currently loaded, if the circuit is an unmodified preset. */
+export function loadedPreset(s: GuidedController): GuidedPresetFile | undefined {
+  return guidedPresetList.find((p) => sameController(decodeGuided(p.genome), s));
+}
+
+/** The preset evolved specifically for a task, as a full state on that task. */
+export function presetStateFor(task: GuidedTask): GuidedState | undefined {
+  const p = guidedPresetList.find((q) => q.task === task);
+  return p && presetState(p, task);
+}

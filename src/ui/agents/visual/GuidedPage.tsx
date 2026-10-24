@@ -3,8 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import {
-  CIRCUITSIZE, guidedAgent, guidedColorSlot, guidedNeuronName, meanScore, NUMRAYS, runAllGuidedTrials, taskInfo, type GuidedState,
-} from '../../../sim/agents/visual/guided';
+  CIRCUITSIZE, guidedAgent, guidedColorSlot, guidedNeuronName, meanScore, NUMRAYS, runAllGuidedTrials, taskInfo, type GuidedState, type GuidedTask, loadedPreset, presetStateFor } from '../../../sim/agents/visual/guided';
 import { BodySize } from '../../../sim/agents/visual/body';
 import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait';
 import { TraceStack, type TraceRow } from '../../components/TraceStack';
@@ -44,6 +43,17 @@ export function GuidedPage() {
   const other = state.task === 'size' ? 'aperture' : 'size';
   const otherFitness = useMemo(() => meanScore(runAllGuidedTrials({ ...state, task: other }, 1000)), [state, other]);
   const info = taskInfo[state.task];
+  const taskFitness = useMemo(() => meanScore(results), [results]);
+  /** Switching task with the other task's specialist preset loaded swaps in this task's specialist. */
+  const switchTask = (t: GuidedTask) => {
+    if (t === state.task) return;
+    const lp = loadedPreset(state);
+    const target = lp && lp.task !== 'both' && lp.task !== t ? presetStateFor(t) : undefined;
+    if (target) ex.resetTo({ ...target, trial: state.trial, grid: state.grid, dt: state.dt, maxDistance: state.maxDistance });
+    else ex.setState({ ...state, task: t });
+    ex.setIdx(0);
+  };
+  const specialist = presetStateFor(state.task);
 
   const rows: TraceRow[] = useMemo(() => {
     const out: TraceRow[] = [];
@@ -87,7 +97,7 @@ export function GuidedPage() {
             <div className="inline">
               {(['size', 'aperture'] as const).map((t) => (
                 <button key={t} className="tab" aria-current={state.task === t ? 'page' : undefined}
-                  onClick={() => { ex.setState({ ...state, task: t }); ex.setIdx(0); }}>{taskInfo[t].name}</button>
+                  onClick={() => switchTask(t)}>{taskInfo[t].name}</button>
               ))}
             </div>
           </div>
@@ -99,6 +109,16 @@ export function GuidedPage() {
               : 'Two line segments fall together, leaving a gap 20–40 wide; the agent must pass through gaps wider than itself and avoid narrower ones.'}
           </p>
           <LoadedBanner loaded={ex.loaded} onPin={ex.pin} onRevert={ex.selectIndividual} />
+          {taskFitness < 0.75 && (
+            <div className="note inline" style={{ marginBottom: 8 }}>
+              <span>
+                <b>⚠ This circuit scores only {fmt(taskFitness, 2)} on {info.name.toLowerCase()}</b> ({taskInfo[other].name.toLowerCase()}: {fmt(otherFitness, 2)}).
+                It wasn&apos;t evolved for this task, so what it does here doesn&apos;t follow the task&apos;s rule.
+              </span>
+              <div style={{ flex: 1 }} />
+              {specialist && <button className="btn small" onClick={() => { ex.resetTo({ ...specialist, trial: state.trial, grid: state.grid, dt: state.dt, maxDistance: state.maxDistance }); ex.setIdx(0); }}>Load the {info.name.toLowerCase()} preset</button>}
+            </div>
+          )}
           <div className="stats" style={{ marginBottom: 8 }}>
             <div className="stat"><span className="v num">{fmt(rec.summary.finalDistance, 1)}</span><span className="l">final distance this trial</span></div>
             <div className="stat"><span className="v num">{fmt(rec.summary.score, 3)}</span><span className="l">trial score ({approach ? (state.task === 'size' ? 'catch' : 'pass through') : 'avoid'})</span></div>
