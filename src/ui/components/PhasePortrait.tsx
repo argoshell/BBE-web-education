@@ -54,6 +54,7 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
   const [showField, setShowField] = useState(true);
   const [showNull, setShowNull] = useState(true);
   const [showFixed, setShowFixed] = useState(true);
+  const [showManifolds, setShowManifolds] = useState(true);
   const [byStance, setByStance] = useState(true);
   const [hover, setHover] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
 
@@ -91,7 +92,9 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
 
   const analysis = useMemo(() => {
     if (!slice) return null;
-    return { null: slice.nullclines(110), fixed: slice.fixedPoints() };
+    const fixed = slice.fixedPoints();
+    const manifolds = fixed.filter((p) => p.kind === 'saddle').map((p) => slice.saddleManifolds(p));
+    return { null: slice.nullclines(110), fixed, manifolds };
   }, [slice]);
 
   const { boxRef, canvasRef, width } = useCanvas((w) => Math.max(240, Math.min(w, 440)), (ctx, w, h) => {
@@ -147,6 +150,23 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
         for (const [a, b, c, d] of segs) { ctx.moveTo(x(a), y(b)); ctx.lineTo(x(c), y(d)); }
         ctx.stroke();
       }
+    }
+
+    // Saddle manifolds: stable ones (separatrices) solid, unstable ones dotted
+    if (analysis && showManifolds) {
+      ctx.strokeStyle = theme.text2;
+      for (const m of analysis.manifolds) {
+        for (const [set, dash, lw] of [[m.stable, [], 1.6], [m.unstable, [2, 3], 1.4]] as const) {
+          ctx.setLineDash([...dash]);
+          ctx.lineWidth = lw;
+          for (const tr of set) {
+            ctx.beginPath();
+            tr.forEach(([a, b], k) => (k ? ctx.lineTo(x(a), y(b)) : ctx.moveTo(x(a), y(b))));
+            ctx.stroke();
+          }
+        }
+      }
+      ctx.setLineDash([]);
     }
 
     // Overlay trajectories (compare mode)
@@ -222,7 +242,7 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
     ctx.textBaseline = 'top';
     ctx.fillText(specOf(yKey)?.label ?? yKey, 0, 0);
     ctx.restore();
-  }, [rec, xKey, yKey, idx, i0, end, ranges, slice, analysis, showField, showNull, showFixed, byStance, theme, overlays, stanceKey]);
+  }, [rec, xKey, yKey, idx, i0, end, ranges, slice, analysis, showField, showNull, showFixed, showManifolds, byStance, theme, overlays, stanceKey]);
 
   const groups = [...new Set(channels.map((c) => c.group))];
   const select = (value: string, on: (v: string) => void) => (
@@ -273,6 +293,10 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
           <span className="chip"><span className="swatch" style={{ background: colorOf(theme, circuitView, plane.j) }} />{nameOf(circuitView, plane.j)} nullcline</span>
         </>}
         {plane && showFixed && <span className="chip">● stable · ○ unstable · ⊗ saddle</span>}
+        {plane && showManifolds && analysis && analysis.manifolds.length > 0 && <>
+          <span className="chip"><LineKey color={theme.text2} />separatrix (stable manifold)</span>
+          <span className="chip"><LineKey color={theme.text2} dashed />unstable manifold</span>
+        </>}
       </div>
       <div className="inline small" style={{ marginTop: 6 }}>
         {stanceKey && overlays.length === 0 && <label className="chip"><input type="checkbox" checked={byStance} onChange={(e) => setByStance(e.target.checked)} />color by stance</label>}
@@ -280,6 +304,7 @@ export function PhasePortrait({ rec, channels, circuitView, idx, window: [i0, i1
           <label className="chip"><input type="checkbox" checked={showField} onChange={(e) => setShowField(e.target.checked)} />flow</label>
           <label className="chip"><input type="checkbox" checked={showNull} onChange={(e) => setShowNull(e.target.checked)} />nullclines</label>
           <label className="chip"><input type="checkbox" checked={showFixed} onChange={(e) => setShowFixed(e.target.checked)} />fixed points</label>
+          <label className="chip"><input type="checkbox" checked={showManifolds} onChange={(e) => setShowManifolds(e.target.checked)} />saddle manifolds</label>
           <span className="muted">others frozen at t = {fmt(rec.t[idx], 1)}</span>
         </> : overlays.length > 0
           ? <span className="muted">Comparing pinned individuals. Untick “show pinned” to see flow and nullclines.</span>

@@ -40,3 +40,37 @@ describe('PlaneSlice', () => {
     expect(sigmoid(0)).toBe(0.5);
   });
 });
+
+describe('saddle manifolds', () => {
+  // Strong self-excitation and mutual inhibition: two stable nodes separated by a saddle
+  const bi = { size: 2, taus: [1, 1], biases: [-1.5, -1.5], gains: [1, 1], weights: [6, -3, -3, 6] };
+  const slice = new PlaneSlice({ circuit: bi, i: 0, j: 1, space: 'state', outputs: [0, 0], inputs: [0, 0], xRange: [-8, 10], yRange: [-8, 10] });
+
+  it('unstable manifolds of the saddle end at the two stable nodes; stable manifolds return to the saddle', () => {
+    const fps = slice.fixedPoints();
+    const saddle = fps.find((p) => p.kind === 'saddle')!;
+    const nodes = fps.filter((p) => p.stable);
+    expect(nodes.length).toBe(2);
+    const m = slice.saddleManifolds(saddle);
+    expect(m.unstable.length).toBe(2);
+    expect(m.stable.length).toBe(2);
+    const ends = m.unstable.map((tr) => tr[tr.length - 1]);
+    for (const [x, y] of ends) expect(nodes.some((n) => Math.hypot(n.x - x, n.y - y) < 0.05)).toBe(true);
+    expect(Math.hypot(ends[0][0] - ends[1][0], ends[0][1] - ends[1][1])).toBeGreaterThan(1);
+  });
+
+  it('the stable manifold is a separatrix: starting points on either side go to different nodes', () => {
+    const fps = slice.fixedPoints();
+    const saddle = fps.find((p) => p.kind === 'saddle')!;
+    const [branch] = slice.saddleManifolds(saddle).stable;
+    // A point a little way along the separatrix, nudged perpendicular to it
+    const [px, py] = branch[Math.min(40, branch.length - 1)], [qx, qy] = branch[Math.min(41, branch.length - 1)];
+    const nx = -(qy - py), ny = qx - px, nn = Math.hypot(nx, ny);
+    const settle = (x: number, y: number) => {
+      for (let k = 0; k < 20000; k++) { const [vx, vy] = slice.velocity(x, y); x += 0.01 * vx; y += 0.01 * vy; }
+      return [x, y];
+    };
+    const a = settle(px + (0.05 * nx) / nn, py + (0.05 * ny) / nn), b = settle(px - (0.05 * nx) / nn, py - (0.05 * ny) / nn);
+    expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeGreaterThan(1);
+  });
+});

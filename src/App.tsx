@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
-import { WalkerPage } from './ui/agents/legged/WalkerPage';
-import { VisualPage } from './ui/agents/visual/VisualPage';
-import { GuidedPage } from './ui/agents/visual/GuidedPage';
-import { OscillatorPage } from './ui/agents/oscillator/OscillatorPage';
-import { ChemotaxisPage } from './ui/agents/chemotaxis/ChemotaxisPage';
+import { lazy, Suspense, useEffect, useState } from 'react';
+
+// Each agent page is loaded on demand so the first page loads quickly
+const WalkerPage = lazy(() => import('./ui/agents/legged/WalkerPage').then((m) => ({ default: m.WalkerPage })));
+const VisualPage = lazy(() => import('./ui/agents/visual/VisualPage').then((m) => ({ default: m.VisualPage })));
+const GuidedPage = lazy(() => import('./ui/agents/visual/GuidedPage').then((m) => ({ default: m.GuidedPage })));
+const OscillatorPage = lazy(() => import('./ui/agents/oscillator/OscillatorPage').then((m) => ({ default: m.OscillatorPage })));
+const ChemotaxisPage = lazy(() => import('./ui/agents/chemotaxis/ChemotaxisPage').then((m) => ({ default: m.ChemotaxisPage })));
 import { AboutPage } from './ui/AboutPage';
 import { parseHash } from './ui/urlState';
 
@@ -39,7 +41,9 @@ export default function App() {
         <div className="spacer" />
         <span className="muted small">Web port of Randall Beer's EvolutionaryAgents</span>
       </header>
-      {page === 'about' ? <AboutPage /> : page === 'visual' ? <VisualPage key="visual" /> : page === 'guided' ? <GuidedPage key="guided" /> : page === 'chemotaxis' ? <ChemotaxisPage key="chemotaxis" /> : page === 'oscillator' ? <OscillatorPage key="oscillator" /> : <WalkerPage key="walker" />}
+      <Suspense fallback={<p className="muted" style={{ padding: 16 }}>Loading…</p>}>
+        {page === 'about' ? <AboutPage /> : page === 'visual' ? <VisualPage key="visual" /> : page === 'guided' ? <GuidedPage key="guided" /> : page === 'chemotaxis' ? <ChemotaxisPage key="chemotaxis" /> : page === 'oscillator' ? <OscillatorPage key="oscillator" /> : <WalkerPage key="walker" />}
+      </Suspense>
     </>
   );
 }

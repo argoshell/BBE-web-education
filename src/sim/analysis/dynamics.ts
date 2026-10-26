@@ -78,8 +78,79 @@ export function equilibriumPoints(c: CTRNNParams, I: ArrayLike<number>, starts: 
 
 // ------------------------------------------------------------------ integration
 
+/**
+ * Allocation-free RK4 for the CTRNN state and (optionally) its variational equations dM/dt = J M.
+ * With n neurons: f_i = (sum_j w_ji o_j + I_i - y_i) / tau_i,  (J M)_ik = (sum_j w_ji d_j M_jk - M_ik) / tau_i,
+ * where o_j = sigma(g_j (y_j + theta_j)) and d_j = g_j o_j (1 - o_j).
+ */
+export class Integrator {
+  private n: number;
+  private o: Float64Array;
+  private d: Float64Array;
+  private k: Float64Array[];
+  private km: Float64Array[];
+  private ys: Float64Array;
+  private ms: Float64Array;
+  private c: CTRNNParams;
+  private I: ArrayLike<number>;
+  constructor(c: CTRNNParams, I: ArrayLike<number>) {
+    this.c = c;
+    this.I = I;
+    const n = (this.n = c.size);
+    this.o = new Float64Array(n);
+    this.d = new Float64Array(n);
+    this.k = [0, 1, 2, 3].map(() => new Float64Array(n));
+    this.km = [0, 1, 2, 3].map(() => new Float64Array(n * n));
+    this.ys = new Float64Array(n);
+    this.ms = new Float64Array(n * n);
+  }
+  private deriv(y: Float64Array, M: Float64Array | null, fy: Float64Array, fm: Float64Array | null) {
+    const { n, c, I, o, d } = this;
+    const w = c.weights;
+    for (let j = 0; j < n; j++) {
+      const v = sigmoid(c.gains[j] * (y[j] + c.biases[j]));
+      o[j] = v;
+      d[j] = c.gains[j] * v * (1 - v);
+    }
+    for (let i = 0; i < n; i++) {
+      let s = I[i];
+      for (let j = 0; j < n; j++) s += w[j * n + i] * o[j];
+      fy[i] = (s - y[i]) / c.taus[i];
+    }
+    if (M && fm)
+      for (let i = 0; i < n; i++) {
+        const rt = 1 / c.taus[i];
+        for (let kk = 0; kk < n; kk++) {
+          let s = 0;
+          for (let j = 0; j < n; j++) s += w[j * n + i] * d[j] * M[j * n + kk];
+          fm[i * n + kk] = (s - M[i * n + kk]) * rt;
+        }
+      }
+  }
+  /** Advance y (and M) in place over time T with steps of about h. */
+  run(y: Float64Array, M: Float64Array | null, T: number, h: number) {
+    const n = this.n, steps = Math.max(1, Math.ceil(T / h)), dt = T / steps;
+    const [k1, k2, k3, k4] = this.k, [m1, m2, m3, m4] = this.km, ys = this.ys, ms = this.ms;
+    for (let s = 0; s < steps; s++) {
+      this.deriv(y, M, k1, M && m1);
+      for (let i = 0; i < n; i++) ys[i] = y[i] + 0.5 * dt * k1[i];
+      if (M) for (let i = 0; i < n * n; i++) ms[i] = M[i] + 0.5 * dt * m1[i];
+      this.deriv(ys, M && ms, k2, M && m2);
+      for (let i = 0; i < n; i++) ys[i] = y[i] + 0.5 * dt * k2[i];
+      if (M) for (let i = 0; i < n * n; i++) ms[i] = M[i] + 0.5 * dt * m2[i];
+      this.deriv(ys, M && ms, k3, M && m3);
+      for (let i = 0; i < n; i++) ys[i] = y[i] + dt * k3[i];
+      if (M) for (let i = 0; i < n * n; i++) ms[i] = M[i] + dt * m3[i];
+      this.deriv(ys, M && ms, k4, M && m4);
+      for (let i = 0; i < n; i++) y[i] += (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
+      if (M) for (let i = 0; i < n * n; i++) M[i] += (dt / 6) * (m1[i] + 2 * m2[i] + 2 * m3[i] + m4[i]);
+    }
+  }
+}
+
+
 /** One RK4 step of the state. */
-function rk4(c: CTRNNParams, I: ArrayLike<number>, y: Float64Array, h: number): Float64Array {
+export function rk4(c: CTRNNParams, I: ArrayLike<number>, y: Float64Array, h: number): Float64Array {
   const n = c.size;
   const k1 = field(c, I, y);
   const t = new Float64Array(n);
@@ -95,29 +166,10 @@ function rk4(c: CTRNNParams, I: ArrayLike<number>, y: Float64Array, h: number): 
 }
 
 /** Integrate state and variational equations dM/dt = J M over time T with ~h steps (RK4). */
-function flowWithMonodromy(c: CTRNNParams, I: ArrayLike<number>, y0: Float64Array, T: number, h: number): { y: Float64Array; M: Float64Array } {
-  const n = c.size, steps = Math.max(1, Math.ceil(T / h)), dt = T / steps;
-  let y: Float64Array = y0.slice();
-  let M: Float64Array = new Float64Array(n * n);
+export function flowWithMonodromy(c: CTRNNParams, I: ArrayLike<number>, y0: Float64Array, T: number, h: number): { y: Float64Array; M: Float64Array } {
+  const n = c.size, y = y0.slice(), M = new Float64Array(n * n);
   for (let i = 0; i < n; i++) M[i * n + i] = 1;
-  const deriv = (yy: Float64Array, MM: Float64Array): [Float64Array, Float64Array] => {
-    const f = field(c, I, yy), J = jacobian(c, yy), dM = new Float64Array(n * n);
-    for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) {
-      let s = 0;
-      for (let j = 0; j < n; j++) s += J[i * n + j] * MM[j * n + k];
-      dM[i * n + k] = s;
-    }
-    return [f, dM];
-  };
-  const add = (a: Float64Array, b: Float64Array, s: number) => Float64Array.from(a, (v, i) => v + s * b[i]);
-  for (let k = 0; k < steps; k++) {
-    const [f1, m1] = deriv(y, M);
-    const [f2, m2] = deriv(add(y, f1, dt / 2), add(M, m1, dt / 2));
-    const [f3, m3] = deriv(add(y, f2, dt / 2), add(M, m2, dt / 2));
-    const [f4, m4] = deriv(add(y, f3, dt), add(M, m3, dt));
-    y = Float64Array.from(y, (v, i) => v + (dt / 6) * (f1[i] + 2 * f2[i] + 2 * f3[i] + f4[i]));
-    M = Float64Array.from(M, (v, i) => v + (dt / 6) * (m1[i] + 2 * m2[i] + 2 * m3[i] + m4[i]));
-  }
+  new Integrator(c, I).run(y, M, T, h);
   return { y, M };
 }
 
@@ -139,37 +191,47 @@ export interface LimitCycle {
  * Poincare section, then refine (x0, T) by Newton shooting with the phase condition
  * f(x_ref) . (x0 - x_ref) = 0. Returns null if no cycle is found (e.g. the flow settles to an equilibrium).
  */
-export function findLimitCycle(c: CTRNNParams, I: ArrayLike<number>, y0: ArrayLike<number>, opts: { settle?: number; h?: number; maxPeriod?: number } = {}): LimitCycle | null {
-  const n = c.size, h = opts.h ?? 0.01;
-  let y: Float64Array = Float64Array.from(y0);
-  const settle = opts.settle ?? 200;
-  for (let t = 0; t < settle; t += h) y = rk4(c, I, y, h);
+export function findLimitCycle(c: CTRNNParams, I: ArrayLike<number>, y0: ArrayLike<number>, opts: { settle?: number; h?: number; maxPeriod?: number; reverse?: boolean } = {}): LimitCycle | null {
+  const n = c.size;
+  // In reverse time an unstable cycle (in the plane) becomes attracting, so it can be found by simulation too
+  const h = (opts.h ?? 0.01) * (opts.reverse ? -1 : 1);
+  const y: Float64Array = Float64Array.from(y0);
+  const settle = opts.settle ?? 200, integ = new Integrator(c, I), dir = Math.sign(h);
+  // Settle in chunks, checking for escape (e.g. in reverse time) between them
+  for (let t = 0; t < settle; t += 10) {
+    integ.run(y, null, dir * Math.min(10, settle - t), h);
+    if (!y.every(Number.isFinite) || y.some((v) => Math.abs(v) > 1e3)) return null;
+  }
   // Poincare section through the current point, normal to the flow
   const ref = y.slice(), normal = field(c, I, ref);
+  if (opts.reverse) for (let i = 0; i < n; i++) normal[i] = -normal[i];
   const nn = Math.hypot(...normal);
   if (nn < 1e-9) return null; // at an equilibrium
   const side = (p: Float64Array) => { let s = 0; for (let i = 0; i < n; i++) s += normal[i] * (p[i] - ref[i]); return s; };
   const maxT = opts.maxPeriod ?? 500;
   let t = 0, prev = 0, T0 = NaN;
-  let p: Float64Array = y.slice();
+  const p: Float64Array = y.slice(), q = new Float64Array(n);
   while (t < maxT) {
-    const q = rk4(c, I, p, h);
-    t += h;
+    q.set(p);
+    integ.run(q, null, h, h);
+    t += Math.abs(h);
     const s = side(q);
-    if (t > 5 * h && prev < 0 && s >= 0) {
+    if (t > 5 * Math.abs(h) && prev < 0 && s >= 0) {
       // Linear interpolation of the crossing time
-      T0 = t - h + (h * -prev) / (s - prev);
+      T0 = t - Math.abs(h) + (Math.abs(h) * -prev) / (s - prev);
       break;
     }
     prev = s;
-    p = q;
+    p.set(q);
   }
   if (!Number.isFinite(T0)) return null;
 
-  // Newton shooting on (x, T)
+  // Newton shooting on (x, T), always in forward time
+  const hf = Math.abs(h);
+  if (opts.reverse) for (let i = 0; i < n; i++) normal[i] = -normal[i];
   let x = ref.slice(), T = T0;
   for (let it = 0; it < 30; it++) {
-    const { y: xT, M } = flowWithMonodromy(c, I, x, T, h);
+    const { y: xT, M } = flowWithMonodromy(c, I, x, T, hf);
     const fT = field(c, I, xT);
     const res = new Float64Array(n + 1);
     for (let i = 0; i < n; i++) res[i] = xT[i] - x[i];
@@ -186,9 +248,10 @@ export function findLimitCycle(c: CTRNNParams, I: ArrayLike<number>, y0: ArrayLi
     if (!d) return null;
     for (let i = 0; i < n; i++) x[i] -= d[i];
     T -= d[n];
-    if (!(T > 0) || !x.every(Number.isFinite)) return null;
+    // Reject runaway iterates (a huge trial period would make the next integration take forever)
+    if (!(T > 0.2 * T0) || T > 3 * T0 || !x.every(Number.isFinite) || x.some((v) => Math.abs(v) > 1e3)) return null;
   }
-  const { y: xT, M } = flowWithMonodromy(c, I, x, T, h);
+  const { y: xT, M } = flowWithMonodromy(c, I, x, T, hf);
   let closure = 0;
   for (let i = 0; i < n; i++) closure = Math.max(closure, Math.abs(xT[i] - x[i]));
   if (closure > 1e-6) return null;
@@ -199,12 +262,10 @@ export function findLimitCycle(c: CTRNNParams, I: ArrayLike<number>, y0: ArrayLi
   multipliers.forEach((m, k) => { if (Math.hypot(m.re - 1, m.im) < Math.hypot(multipliers[trivial].re - 1, multipliers[trivial].im)) trivial = k; });
   const stable = multipliers.every((m, k) => k === trivial || Math.hypot(m.re, m.im) < 1);
   const samples = 200, trajectory: Float64Array[] = [];
-  let q: Float64Array = x.slice();
-  const dt = T / samples;
+  const pt: Float64Array = x.slice();
   for (let k = 0; k <= samples; k++) {
-    trajectory.push(q.slice());
-    const sub = Math.max(1, Math.ceil(dt / h));
-    for (let s = 0; s < sub; s++) q = rk4(c, I, q, dt / sub);
+    trajectory.push(pt.slice());
+    integ.run(pt, null, T / samples, hf);
   }
   return { y: x, period: T, multipliers, stable, trajectory };
 }

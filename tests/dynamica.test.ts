@@ -81,3 +81,66 @@ describe('dynamics vs. Dynamica', () => {
     }
   });
 });
+
+import { cycleBranches } from '../src/sim/analysis/cycles';
+import { bialternate, bifurcationCurves } from '../src/sim/analysis/bifurcation2';
+import { determinant, eigenvalues } from '../src/sim/analysis/linalg';
+import { RandomState } from '../src/sim/core/random';
+
+describe('limit-cycle branches vs. Dynamica', () => {
+  const base = circuitOf(ref.oscillator.circuit);
+  const fam: ParamFamily = { circuit: (l) => ({ ...base, biases: [l, base.biases[1]] }), inputs: () => [0, 0] };
+  const eq = equilibriumBranches(fam, -8, 4);
+  const [branch] = cycleBranches(fam, -8, 4, eq, [0, 0]);
+  const pts = [...branch.points].sort((a, b) => a.lambda - b.lambda);
+
+  it('the oscillator cycle branch runs from Hopf point to Hopf point', () => {
+    const hopfs = (ref.oscillatorBranches.bifurcations as { parameters: number[] }[]).map((b) => b.parameters[0]).sort((a, b) => a - b);
+    expect(Math.abs(pts[0].lambda - hopfs[0])).toBeLessThan(0.01);
+    expect(Math.abs(pts[pts.length - 1].lambda - hopfs[1])).toBeLessThan(0.01);
+    expect(pts.every((p) => p.stable)).toBe(true);
+  });
+
+  it('periods along the branch match Dynamica\'s FindLimitCycle at sampled parameter values', () => {
+    for (const r of ref.oscillatorCycles as { lambda: number; period: number }[]) {
+      const k = pts.findIndex((p) => p.lambda >= r.lambda);
+      const a = pts[k - 1], b = pts[k];
+      const T = a.period + ((r.lambda - a.lambda) / (b.lambda - a.lambda)) * (b.period - a.period);
+      expect(Math.abs(T - r.period) / r.period).toBeLessThan(2e-3);
+    }
+  });
+});
+
+describe('two-parameter bifurcation curves vs. Dynamica', () => {
+  const base = circuitOf(ref.oscillator.circuit);
+  const { curves } = bifurcationCurves({ circuit: (a, b) => ({ ...base, biases: [a, b] }), inputs: () => [0, 0] }, { l1: [-8, 4], l2: [-8, 4] });
+  const distTo = (kind: 'fold' | 'hopf', l1: number, l2: number) => Math.min(...curves.filter((c) => c.kind === kind).flatMap((c) => c.points.slice(1).map((p, k) => {
+    const q = c.points[k], dx = p.l1 - q.l1, dy = p.l2 - q.l2, L = dx * dx + dy * dy;
+    const s = L > 0 ? Math.max(0, Math.min(1, ((l1 - q.l1) * dx + (l2 - q.l2) * dy) / L)) : 0;
+    return Math.hypot(l1 - (q.l1 + s * dx), l2 - (q.l2 + s * dy));
+  })));
+
+  it('every point of Dynamica\'s fold curves lies on one of ours', () => {
+    const folds = (ref.oscillatorBifurcationCurves as { type: string; points: number[][] }[]).filter((c) => c.type === 'Fold');
+    expect(folds.length).toBe(4);
+    for (const c of folds) for (const p of c.points) expect(distTo('fold', p[2], p[3])).toBeLessThan(0.01);
+  });
+
+  it('the Hopf curve passes through Dynamica\'s one-parameter Hopf points (theta_2 = -1.75)', () => {
+    for (const b of ref.oscillatorBranches.bifurcations as { parameters: number[] }[]) expect(distTo('hopf', b.parameters[0], -1.75)).toBeLessThan(1e-3);
+  });
+
+  it('det(2A (.) I) equals the product of pairwise eigenvalue sums', () => {
+    const rs = new RandomState(4);
+    for (const n of [2, 3, 4, 5]) {
+      const A = Float64Array.from({ length: n * n }, () => rs.uniformRandom(-2, 2));
+      const ev = eigenvalues(A, n);
+      let pr = 1, pi = 0;
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        const sr = ev[i].re + ev[j].re, si = ev[i].im + ev[j].im, r = pr * sr - pi * si;
+        pi = pr * si + pi * sr; pr = r;
+      }
+      expect(determinant(bialternate(A, n), (n * (n - 1)) / 2)).toBeCloseTo(pr, 8);
+    }
+  });
+});

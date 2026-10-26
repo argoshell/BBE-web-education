@@ -9,6 +9,7 @@ import { EvolutionPanel } from '../../evolution/EvolutionPanel';
 import { fmt } from '../../plot';
 import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
+import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { useExplorer } from '../useExplorer';
 import { ChemoEvoConfigPanel, ChemotaxisControls } from './ChemotaxisControls';
 import { ChemoArena, TrialsOverview, type ArenaZoom } from './ChemotaxisViews';
@@ -143,6 +144,9 @@ export function ChemotaxisPage() {
             corresponding first run here (main.cpp reuses one worm for every heading).
           </p>
         </div>
+
+        {ex.circuitView && <AgentDynamicsCard view={ex.circuitView} rec={rec} idx={cur} onCircuit={(circuit) => ex.setState({ ...state, worm: { ...state.worm, circuit } })}
+          note="Sensory (ON/OFF) and head-oscillator inputs are frozen at their values at the current time; scrub the time to see how the dynamics change during a head sweep." />}
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}

@@ -6,6 +6,8 @@ import {
   getParam, mapCell, paramKeys, paramLabel, transientIndex, type MapCell, type MapMetric, type OscState, type ParamKey,
 } from '../../../sim/agents/oscillator';
 import type { Recording } from '../../../sim/core/recording';
+import { bifurcationCurves } from '../../../sim/analysis/bifurcation2';
+import { effectiveCircuit, setParam as setP } from '../../../sim/agents/oscillator';
 import { useCanvas } from '../../hooks/useCanvas';
 import { drawXAxis, drawYTicks, fmt, linear, niceTicks } from '../../plot';
 import { neuronColor, useTheme, type Theme } from '../../theme';
@@ -112,6 +114,7 @@ export function ParamMap({ state, onPick }: { state: OscState; onPick: (xKey: Pa
   const [res, setRes] = useState(48);
   const [cells, setCells] = useState<(MapCell | null)[]>([]);
   const [hover, setHover] = useState<{ a: number; b: number; px: number; py: number } | null>(null);
+  const [showCurves, setShowCurves] = useState(true);
   const validX = keys.includes(xKey) ? xKey : keys[0], validY = keys.includes(yKey) ? yKey : keys[Math.min(1, keys.length - 1)];
 
   // Everything except the two swept parameters determines the map
@@ -141,6 +144,15 @@ export function ParamMap({ state, onPick }: { state: OscState; onPick: (xKey: Pa
   }, [basis]);
 
   const done = cells.filter(Boolean).length;
+  // Exact fold and Hopf curves for the two swept parameters (Dynamica's BifurcationBranches)
+  const curves = useMemo(() => {
+    if (!showCurves) return null;
+    const base = effectiveCircuit(state), zeros = new Array(base.size).fill(0);
+    try {
+      return bifurcationCurves({ circuit: (a, b) => setP(setP(base, validX, a), validY, b), inputs: () => zeros }, { l1: xr, l2: yr });
+    } catch { return null; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCurves, basis]);
   const periodMax = useMemo(() => Math.max(1, ...cells.map((c) => (c && Number.isFinite(c.period) ? c.period : 0))), [cells]);
   const stableMax = useMemo(() => Math.max(1, ...cells.map((c) => (c && Number.isFinite(c.stable) ? c.stable : 0))), [cells]);
   const colorOf = (c: MapCell): string => {
@@ -159,6 +171,36 @@ export function ParamMap({ state, onPick }: { state: OscState; onPick: (xKey: Pa
         ctx.fillStyle = colorOf(c);
         ctx.fillRect(PAD.l + a * cw, h - PAD.b - (b + 1) * ch, cw + 0.5, ch + 0.5);
       }
+    if (curves) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(PAD.l, PAD.t, w - PAD.l - PAD.r, h - PAD.t - PAD.b);
+      ctx.clip();
+      for (const cv of curves.curves) {
+        let i = 1;
+        const P = cv.points;
+        while (i < P.length) {
+          const kind = cv.kind === 'fold' ? 'fold' : P[i].type;
+          ctx.beginPath();
+          ctx.moveTo(x(P[i - 1].l1), y(P[i - 1].l2));
+          while (i < P.length && (cv.kind === 'fold' ? 'fold' : P[i].type) === kind) { ctx.lineTo(x(P[i].l1), y(P[i].l2)); i++; }
+          // A light halo keeps the curves readable over the colored map
+          ctx.setLineDash(kind === 'hopf' ? [6, 4] : kind === 'neutral' ? [1.5, 3] : []);
+          ctx.strokeStyle = theme.surface; ctx.lineWidth = kind === 'neutral' ? 2.5 : 4; ctx.stroke();
+          ctx.strokeStyle = kind === 'neutral' ? theme.muted : theme.text; ctx.lineWidth = kind === 'neutral' ? 1 : 2; ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+      for (const c2 of curves.codim2) {
+        const px = x(c2.l1), py = y(c2.l2);
+        ctx.fillStyle = theme.text; ctx.strokeStyle = theme.surface; ctx.lineWidth = 2;
+        ctx.beginPath();
+        if (c2.kind === 'cusp') ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+        else ctx.rect(px - 4.5, py - 4.5, 9, 9);
+        ctx.fill(); ctx.stroke();
+      }
+      ctx.restore();
+    }
     drawYTicks(ctx, y, PAD.l - 6, niceTicks(yr[0], yr[1], 5), 'transparent', theme.muted, PAD.l, w - PAD.r);
     drawXAxis(ctx, x, h - PAD.b, PAD.l, w - PAD.r, niceTicks(xr[0], xr[1], 6), theme.axis, theme.muted, paramLabel(validX));
     ctx.save();
@@ -181,7 +223,7 @@ export function ParamMap({ state, onPick }: { state: OscState; onPick: (xKey: Pa
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-  }, [cells, theme, xr, yr, res, metric, state.circuit, validX, validY]);
+  }, [cells, theme, xr, yr, res, metric, state.circuit, validX, validY, curves]);
 
   const cellAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -221,6 +263,7 @@ export function ParamMap({ state, onPick }: { state: OscState; onPick: (xKey: Pa
         </select>
         <span className="muted">resolution</span>
         <select value={res} onChange={(e) => setRes(Number(e.target.value))}>{[24, 48, 72, 96].map((r) => <option key={r} value={r}>{r}×{r}</option>)}</select>
+        <label className="chip"><input type="checkbox" checked={showCurves} onChange={(e) => setShowCurves(e.target.checked)} />bifurcation curves</label>
         <button className="btn small" title="Center both axes on the current parameter values" onClick={() => { setXr(defaultRange(validX, getParam(state.circuit, validX))); setYr(defaultRange(validY, getParam(state.circuit, validY))); }}>re-center</button>
         {done < res * res && <span className="muted">computing… {Math.round((100 * done) / (res * res))}%</span>}
       </div>
@@ -245,6 +288,11 @@ export function ParamMap({ state, onPick }: { state: OscState; onPick: (xKey: Pa
         {metric === 'stable' && ramp('stable equilibria', '1', String(stableMax))}
         <span className="chip"><span className="swatch" style={{ background: theme.surface2, border: `1px solid ${theme.axis}` }} />{metric === 'stable' ? 'none (limit cycle or other attractor)' : 'no oscillation'}</span>
         <span className="chip"><span className="swatch" style={{ background: theme.series[1], borderRadius: 5 }} />current parameters</span>
+        {curves && <>
+          <span className="chip"><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke={theme.text} strokeWidth="2" /></svg>fold curve</span>
+          <span className="chip"><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke={theme.text} strokeWidth="2" strokeDasharray="6 4" /></svg>Hopf curve</span>
+          <span className="chip">● cusp · ■ Bogdanov–Takens</span>
+        </>}
       </div>
       <p className="small muted" style={{ marginTop: 4 }}>
         Other parameters stay as set. Each cell is a short run (dt ≥ 0.05) from the configured initial state; click a cell to load it.

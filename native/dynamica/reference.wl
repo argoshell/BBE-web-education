@@ -67,5 +67,20 @@ results["cpg"] = <|"circuit" -> <|"taus" -> cpgT, "biases" -> cpgB, "gains" -> {
   "cycleStart" -> N[yCpg],
   "limitCycle" -> lc2json[FindLimitCycle[dsCpg, yCpg, 44]]|>;
 
+(* 6. Limit cycles of the oscillator at several theta_1 values (points the site's cycle branch must pass through).
+   FollowLimitCycleBranch stalls on this branch, so each cycle is found from a simulated start instead. *)
+results["oscillatorCycles"] = Table[Module[{f = ctrnnFns[{1, 1}, {t1, -1.75}, {1, 1}, oscW, {0, 0}, {y1, y2}], y0, lc},
+    y0 = settle[f, {y1, y2}, {0.1, -0.2}, 400];
+    lc = FindLimitCycle[DynamicalSystem[f, {{y1, -10, 10}, {y2, -10, 10}}], y0, 30];
+    <|"lambda" -> t1, "period" -> If[Head[lc] === LimitSet, N[LCPeriod[lc]], Null], "stability" -> If[Head[lc] === LimitSet, ToString[LSStability[lc]], Null]|>],
+  {t1, {-2.95, -2.85, -2.75, -2.65, -2.55}}];
+
+(* 7. Two-parameter bifurcation curves of the oscillator in (theta_1, theta_2) *)
+dsOsc2 = DynamicalSystem[ctrnnFns[{1, 1}, {th1, th2}, {1, 1}, oscW, {0, 0}, {y1, y2}], {{y1, -14, 14}, {y2, -14, 14}}, {{th1, -8, 4}, {th2, -8, 4}}];
+bbs = BifurcationBranches[dsOsc2, {th1, th2}];
+results["oscillatorBifurcationCurves"] = (<|"head" -> ToString[Head[#]], "type" -> ToString[#[[2]]],
+    "points" -> If[ListQ[#[[4]]], N[#[[4]]], {}]|> & /@ Cases[Flatten[{bbs}], _BifurcationBranch | _Codim2Point]);
+results["oscillatorCodim2"] = (<|"type" -> ToString[#[[2]]], "point" -> N[#[[3]]], "parameters" -> N[Values[#[[1, 9]]]]|> & /@ Cases[Flatten[{bbs}], _Codim2Point, Infinity]);
+
 Export["/work/tests/fixtures/dynamica.json", results, "RawJSON"];
 Print["wrote tests/fixtures/dynamica.json with keys: ", Keys[results]];

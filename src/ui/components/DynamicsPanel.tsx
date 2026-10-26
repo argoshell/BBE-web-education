@@ -6,6 +6,7 @@ import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import {
   equilibriumBranches, equilibriumPoints, findLimitCycle, type Branch, type ParamFamily,
 } from '../../sim/analysis/dynamics';
+import { cycleBranches, type CycleBranch } from '../../sim/analysis/cycles';
 import type { Complex } from '../../sim/analysis/linalg';
 import type { CTRNNParams } from '../../sim/core/ctrnn';
 import { useCanvas } from '../hooks/useCanvas';
@@ -103,6 +104,7 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
   const fam = families.find((f) => f.key === fk) ?? families[0];
   const [range, setRange] = useState<[number, number]>(fam.range);
   const [neuron, setNeuron] = useState(0);
+  const [showCycles, setShowCycles] = useState(false);
   const [hover, setHover] = useState<{ px: number; py: number; l: number } | null>(null);
   const geom = useRef({ w: 0, h: 0 });
   const k = Math.min(neuron, n - 1);
@@ -112,14 +114,20 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
   const branches: Branch[] = useMemo(() => {
     try { return equilibriumBranches(deferredFam.family, range[0], range[1]); } catch { return []; }
   }, [deferredFam, range]);
+  // Limit-cycle branches by continuation (on request: slower)
+  const cycles: CycleBranch[] = useMemo(() => {
+    if (!showCycles) return [];
+    try { return cycleBranches(deferredFam.family, range[0], range[1], branches, state); } catch { return []; }
+  }, [showCycles, deferredFam, range, branches, state]);
   // Simulated attractor envelope: min / max of the output after a transient, from the current state
   const envelope = useMemo(() => {
+    if (showCycles) return [];
     const out: { l: number; lo: number; hi: number }[] = [];
-    const S = 60;
+    const S = 40;
     for (let s = 0; s <= S; s++) {
       const l = range[0] + ((range[1] - range[0]) * s) / S;
       const c = deferredFam.family.circuit(l), I = deferredFam.family.inputs(l);
-      const lc = findLimitCycle(c, I, state, { settle: 150, maxPeriod: 200, h: 0.02 });
+      const lc = findLimitCycle(c, I, state, { settle: 100, maxPeriod: 200, h: Math.min(0.05, Math.min(...c.taus) / 20) });
       if (lc) {
         let lo = 1, hi = 0;
         for (const y of lc.trajectory) {
@@ -130,7 +138,7 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
       }
     }
     return out;
-  }, [deferredFam, range, state, k]);
+  }, [deferredFam, range, state, k, showCycles]);
 
   const H = 300;
   const { boxRef, canvasRef, width } = useCanvas(H, (ctx, w, h) => {
@@ -141,6 +149,35 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
     // Oscillation envelope
     ctx.fillStyle = neuronColor(k);
     for (const e of envelope) for (const v of [e.lo, e.hi]) { ctx.beginPath(); ctx.arc(x(e.l), y(v), 2.5, 0, Math.PI * 2); ctx.fill(); }
+    // Limit-cycle branches: max and min of the output around the cycle
+    for (const cb of cycles) {
+      for (const which of ['max', 'min'] as const) {
+        let i = 1;
+        while (i < cb.points.length) {
+          const stable = cb.points[i - 1].stable && cb.points[i].stable;
+          ctx.strokeStyle = neuronColor(k);
+          ctx.lineWidth = stable ? 2.2 : 1.4;
+          ctx.setLineDash(stable ? [] : [5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x(cb.points[i - 1].lambda), y(cb.points[i - 1][which][k]));
+          while (i < cb.points.length && (cb.points[i - 1].stable && cb.points[i].stable) === stable) {
+            ctx.lineTo(x(cb.points[i].lambda), y(cb.points[i][which][k]));
+            i++;
+          }
+          ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+      for (const bp of cb.bifurcations) {
+        const p = cb.points.reduce((m, q) => (Math.abs(q.lambda - bp.lambda) < Math.abs(m.lambda - bp.lambda) ? q : m));
+        for (const v of [p.max[k], p.min[k]]) {
+          ctx.beginPath();
+          ctx.moveTo(x(bp.lambda), y(v) - 6); ctx.lineTo(x(bp.lambda) + 6, y(v) + 5); ctx.lineTo(x(bp.lambda) - 6, y(v) + 5); ctx.closePath();
+          ctx.fillStyle = theme.surface; ctx.fill();
+          ctx.strokeStyle = theme.text; ctx.lineWidth = 1.5; ctx.stroke();
+        }
+      }
+    }
     // Equilibrium branches
     // Draw each run of equal stability as one path so dash patterns stay continuous
     for (const b of branches) {
@@ -190,7 +227,7 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
       ctx.lineTo(Math.round(hover.px) + 0.5, h - PAD.b);
       ctx.stroke();
     }
-  }, [branches, envelope, range, k, theme, fam.value, fam.label, hover]);
+  }, [branches, cycles, envelope, range, k, theme, fam.value, fam.label, hover, neuronColor]);
 
   const valueAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -199,6 +236,8 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
     return { px, py, l: x.invert(px) };
   };
   const bifs = branches.flatMap((b) => b.bifurcations).sort((a, b) => a.lambda - b.lambda);
+  const cycleBifs = cycles.flatMap((c) => c.bifurcations);
+  const cycleName = { lpc: 'fold of cycles', pd: 'period doubling', ns: 'torus (Neimark–Sacker)' };
 
   return (
     <div>
@@ -211,12 +250,15 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
         <input type="number" className="num" style={{ width: 64 }} value={range[1]} step={0.5} onChange={(e) => setRange([range[0], Number(e.target.value)])} />
         <span className="muted">show</span>
         <select value={k} onChange={(e) => setNeuron(Number(e.target.value))}>{Array.from({ length: n }, (_, i) => <option key={i} value={i}>{neuronName(i)} output</option>)}</select>
+        <label className="chip"><input type="checkbox" checked={showCycles} onChange={(e) => setShowCycles(e.target.checked)} />follow limit-cycle branches (slower)</label>
       </div>
       <div className="legend" style={{ marginBottom: 4 }}>
         <span className="chip"><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke={theme.text} strokeWidth="2.2" /></svg>stable equilibria</span>
         <span className="chip"><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke={theme.muted} strokeWidth="1.4" strokeDasharray="5 4" /></svg>unstable</span>
         <span className="chip">□ fold (saddle-node) · ◇ Hopf</span>
-        <span className="chip"><span className="swatch" style={{ background: neuronColor(k), borderRadius: 5 }} />limit-cycle min / max</span>
+        {showCycles
+          ? <span className="chip"><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke={neuronColor(k)} strokeWidth="2.2" /></svg>limit cycle max / min (dashed: unstable) · △ cycle bifurcation</span>
+          : <span className="chip"><span className="swatch" style={{ background: neuronColor(k), borderRadius: 5 }} />simulated limit-cycle min / max</span>}
         <span className="chip"><span className="swatch" style={{ background: theme.series[1] }} />current value</span>
       </div>
       <div ref={boxRef} className="canvas-box">
@@ -229,9 +271,10 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
           </div>
         )}
       </div>
-      {bifs.length > 0 && (
+      {(bifs.length > 0 || cycleBifs.length > 0) && (
         <p className="small" style={{ marginTop: 4 }}>
           {bifs.map((b, i) => <span key={i} className="num" style={{ marginRight: 12 }}>{b.kind === 'fold' ? '□ fold' : '◇ Hopf'} at {fmt(b.lambda, 3)}</span>)}
+          {cycleBifs.map((b, i) => <span key={'c' + i} className="num" style={{ marginRight: 12 }}>△ {cycleName[b.kind]} at {fmt(b.lambda, 3)} (period {fmt(b.period, 2)})</span>)}
         </p>
       )}
     </div>

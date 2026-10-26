@@ -96,6 +96,62 @@ export class PlaneSlice {
     return { xNull: contour(fi, xs, ys), yNull: contour(fj, xs, ys) };
   }
 
+  /**
+   * Stable and unstable manifolds of a saddle in display coordinates: start a small step along
+   * each eigenvector of the (display-coordinate) Jacobian and integrate forward (unstable
+   * manifold) or backward in time (stable manifold). The stable manifolds are separatrices:
+   * they divide the plane into the basins of attraction of different attractors.
+   */
+  saddleManifolds(p: FixedPoint, opts: { step?: number; maxTime?: number } = {}): { stable: [number, number][][]; unstable: [number, number][][] } {
+    const [x0, x1] = this.spec.xRange, [y0, y1] = this.spec.yRange;
+    const sx = x1 - x0, sy = y1 - y0;
+    // Jacobian of the display velocity by central differences
+    const e = 1e-6 * Math.max(sx, sy);
+    const [ax, ay] = this.velocity(p.x + e, p.y), [bx, by] = this.velocity(p.x - e, p.y);
+    const [cx, cy] = this.velocity(p.x, p.y + e), [dx, dy] = this.velocity(p.x, p.y - e);
+    const a = (ax - bx) / (2 * e), c = (ay - by) / (2 * e), b = (cx - dx) / (2 * e), d = (cy - dy) / (2 * e);
+    const tr = a + d, det = a * d - b * c, disc = tr * tr - 4 * det;
+    if (disc <= 0) return { stable: [], unstable: [] };
+    const mus = [(tr + Math.sqrt(disc)) / 2, (tr - Math.sqrt(disc)) / 2];
+    const vec = (mu: number): [number, number] => {
+      const v: [number, number] = Math.abs(b) > Math.abs(c) ? [b, mu - a] : [mu - d, c];
+      const nrm = Math.hypot(v[0] / sx, v[1] / sy) || 1;
+      return [v[0] / nrm, v[1] / nrm];
+    };
+    const h = opts.step ?? 0.02, T = opts.maxTime ?? 80;
+    const inside = (x: number, y: number) => x >= x0 - 0.05 * sx && x <= x1 + 0.05 * sx && y >= y0 - 0.05 * sy && y <= y1 + 0.05 * sy;
+    const trace = (start: [number, number], dir: number): [number, number][] => {
+      const pts: [number, number][] = [[p.x, p.y], start];
+      let [x, y] = start;
+      const f = (u: number, w: number) => { const [vx, vy] = this.velocity(u, w); return [dir * vx, dir * vy]; };
+      for (let t = 0; t < T; t += h) {
+        const [k1x, k1y] = f(x, y);
+        const [k2x, k2y] = f(x + 0.5 * h * k1x, y + 0.5 * h * k1y);
+        const [k3x, k3y] = f(x + 0.5 * h * k2x, y + 0.5 * h * k2y);
+        const [k4x, k4y] = f(x + h * k3x, y + h * k3y);
+        const nx = x + (h / 6) * (k1x + 2 * k2x + 2 * k3x + k4x), ny = y + (h / 6) * (k1y + 2 * k2y + 2 * k3y + k4y);
+        if (!Number.isFinite(nx) || !Number.isFinite(ny) || !inside(nx, ny)) break;
+        // Stop when the flow has (nearly) stopped: reached an equilibrium
+        if (Math.hypot((nx - x) / sx, (ny - y) / sy) < 1e-7) break;
+        x = nx; y = ny;
+        pts.push([x, y]);
+      }
+      return pts;
+    };
+    const eps = 2e-3;
+    const out = { stable: [] as [number, number][][], unstable: [] as [number, number][][] };
+    for (const mu of mus) {
+      const [vx, vy] = vec(mu);
+      for (const sgn of [1, -1]) {
+        const start: [number, number] = [p.x + sgn * eps * vx, p.y + sgn * eps * vy];
+        if (this.spec.space === 'output' && (start[0] <= 0 || start[0] >= 1 || start[1] <= 0 || start[1] >= 1)) continue;
+        if (mu > 0) out.unstable.push(trace(start, 1));
+        else out.stable.push(trace(start, -1));
+      }
+    }
+    return out;
+  }
+
   /** Fixed points via Newton's method from a grid of starting points. */
   fixedPoints(grid = 8): FixedPoint[] {
     const { circuit: c, i, j, space } = this.spec;

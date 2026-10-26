@@ -9,6 +9,7 @@ import { EvolutionPanel } from '../../evolution/EvolutionPanel';
 import { fmt } from '../../plot';
 import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
+import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { useExplorer } from '../useExplorer';
 import { VisualControls, VisualEvoConfigPanel } from './VisualControls';
 import { VisualInfoCard } from './VisualInfo';
@@ -147,6 +148,8 @@ export function VisualPage() {
         </div>
 
         <VisualInfoCard state={state} time={rec.t[cur]} onSeekTime={(t) => ex.setIdx(Math.max(0, Math.round(t / state.dt)))} />
+
+        {ex.circuitView && <AgentDynamicsCard view={ex.circuitView} rec={rec} idx={cur} onCircuit={(circuit) => ex.setState({ ...state, circuit })} />}
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}

@@ -12,6 +12,7 @@ import { EvolutionPanel } from '../../evolution/EvolutionPanel';
 import { fmt } from '../../plot';
 import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
+import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { useExplorer } from '../useExplorer';
 import { GuidedControls, GuidedEvoConfigPanel } from './GuidedControls';
 import { GuidedArena, GuidedScoreMap, GuidedTrialsOverview } from './GuidedViews';
@@ -181,6 +182,8 @@ export function GuidedPage() {
             <GuidedScoreMap results={results} task={state.task} selected={state.trial} onSelect={select} />
           </div>
         </div>
+
+        {ex.circuitView && <AgentDynamicsCard view={ex.circuitView} rec={rec} idx={cur} onCircuit={(circuit) => ex.setState({ ...state, circuit })} />}
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}
