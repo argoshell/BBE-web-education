@@ -51,6 +51,7 @@ function isNumeric(v: string | undefined): v is string {
   return v !== undefined && v.trim() !== '' && Number.isFinite(Number(v));
 }
 
+if (agent.id === 'relcat') evo = { ...evo, symmetric: args.symmetric === 'true' };
 const search = {
   ...defaultSearchConfig,
   vectorSize: agent.genomeSize(evo),

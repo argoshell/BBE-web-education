@@ -104,7 +104,7 @@ a { color: var(--accent); }
   position: sticky; top: 0; z-index: 5;
 }
 .app-header h1 { font-size: 16px; }
-.app-header nav { display: flex; gap: 4px; }
+.app-header nav { display: flex; gap: 4px; flex-wrap: wrap; min-width: 0; }
 .app-header .spacer { flex: 1; }
 .tab {
   border: 1px solid transparent; background: none; padding: 5px 10px; border-radius: 6px; cursor: pointer;

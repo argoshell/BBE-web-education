@@ -41,6 +41,13 @@ export function AboutPage() {
           <li>Izquierdo, E.J. and Beer, R.D. (2013). Connecting a connectome to behavior: an ensemble of neuroanatomical models of <i>C. elegans</i> klinotaxis. <i>PLoS Computational Biology</i> 9(2):e1002890.</li>
           <li>Body, gradient, sensors, network, genome encoding and fitness follow <code>WormAgent.cpp</code> and <code>main.cpp</code> and are tested against them. Differences: <code>pastTheta</code>, uninitialized in the C++, starts at 0; the speed window spans one head sweep at any step size (420 steps at the original 0.01 s); the presets were evolved with this site's TSearch rather than the threaded C++ search.</li>
         </ul>
+        <h3>Relational categorization</h3>
+        <ul>
+          <li>Williams, P.L., Beer, R.D. and Gasser, M. (2008). An embodied dynamical approach to relational categorization. <i>Proc. 30th Annual Conference of the Cognitive Science Society</i>, pp. 223–228.</li>
+          <li>Williams, P.L. and Beer, R.D. (2013). Environmental feedback drives multiple behaviors from the same neural circuit. <i>Proc. ECAL 2013</i>, pp. 268–275.</li>
+          <li>Beer, R.D. and Williams, P.L. (2015). Information processing and dynamics in minimally cognitive agents. <i>Cognitive Science</i> 39(1):1–38.</li>
+          <li>Python code by Nathaniel Rodriguez: <a href="https://github.com/Nathaniel-Rodriguez/relcat" target="_blank" rel="noreferrer">relcat</a>. Ported from commit e12fc84, which carries no license, so it is fetched for testing and not redistributed. Body, rays, network, genome decoding and fitness are checked step by step against it, including its quirks (neuron outputs σ(g·y + θ), ray hits on the far side of the circle, the 20–65 size grid).</li>
+        </ul>
         <h3>Differences from the original</h3>
         <ul>
           <li>Search individuals carry ids and parent ids so lineages can be explored.</li>

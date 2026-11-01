@@ -7,7 +7,8 @@ Agents so far: a bodiless **CTRNN oscillator** (central pattern generator), the 
 **visual categorizer** (Beer 2003), the **visually guided tasks** of Eduardo Izquierdo, Randall Beer and Matthew Setzler
 ([VisuallyGuidedAgent](https://github.com/edizquierdo/VisuallyGuidedAgent): object-size discrimination and perceiving
 affordances), and **C. elegans klinotaxis** (Izquierdo's [CE_orientation](https://github.com/edizquierdo/CE_orientation)
-model; Izquierdo & Lockery 2010, Izquierdo & Beer 2013). For each:
+model; Izquierdo & Lockery 2010, Izquierdo & Beer 2013), and **relational categorization** (a port of N. Rodriguez's
+[relcat](https://github.com/Nathaniel-Rodriguez/relcat); Williams, Beer & Gasser 2008, Beer & Williams 2015). For each:
 
 - an animated body/arena, neural traces, and a phase portrait with flow, nullclines and fixed points
   for any two neurons, all linked to one time cursor (plus equilibria-vs-leg-angle sweeps for sensory walkers,

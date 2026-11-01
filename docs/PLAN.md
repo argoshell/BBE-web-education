@@ -128,6 +128,7 @@ physics, an evaluation function and a body renderer.
 | 7. Visually guided tasks (2026-10-23) | Done: Izquierdo/Beer/Setzler VisuallyGuidedAgent (`guided` page): size discrimination and perceiving affordances (apertures), 15-ray agent with sensor-weight layer and symmetric 100-gene genome, tested against the C++ (fetched at a pinned commit, never committed). Evolved presets: size 1.000, affordances 1.000, both (product) 0.928. |
 | 8. Chemotaxis (2026-10-23) | Done: port of Izquierdo's CE_orientation klinotaxis worm (WormAgent.cpp, main.cpp genome/fitness), tested against the C++ (`npm run fixtures`, fetched by `scripts/fetch-izquierdo-sources.mjs` at a pinned commit); arena with concentration field, all-runs overview, evolved presets checked at dt/2. |
 | 9. Dynamics / Dynamica (2026-10-24, extended 2026-10-26) | Done: eigenvalues (Francis QR), equilibria classified as in Dynamica, limit cycles by Newton shooting with Floquet multipliers, pseudo-arclength continuation of equilibrium branches (fold/Hopf located by bisection) and of limit-cycle branches (fold of cycles / period doubling / torus flagged), saddle manifolds (separatrices) in the phase portrait, two-parameter fold and Hopf curves with cusp and Bogdanov-Takens points on the oscillator parameter map. Dynamics card on every agent page. Verified against Beer's Dynamica in the Free Wolfram Engine (`npm run fixtures:dynamica`): bifurcation points ~1e-15, periods ~1e-6, fold curves within 4.5e-3 (polyline resolution). Notes: Dynamica's FollowLimitCycleBranch stalls on the oscillator branch and its BifurcationBranches returns no Hopf curve there, so those are checked against FindLimitCycle samples and one-parameter Hopf points. |
+| 10. Relational categorization (2026-10-31) | Done: port of N. Rodriguez's relcat (Python; Williams, Beer & Gasser 2008), fetched at a pinned commit by `scripts/fetch-relcat.mjs` and never committed. Fixtures come from running the Python in Docker (`native/relcat/run.sh`); every step of traced trials, decoding and fitness match to ~1e-15. Page: two-phase arena, catch/avoid trial panels, score matrix, information card (relation / first size / second size over fall progress, Beer & Williams 2015 style). Presets evolved with this site's TSearch (0.934, 0.872; robust at dt/2). A symmetric genome is offered with a caution: relcat drops circles straight above the agent, so a symmetric circuit can only avoid through rounding. |
 
 ### Ideas / next steps
 
@@ -139,8 +140,7 @@ details against the sources before implementing, and add CLI evolution checks li
 1. **Chemotaxis** (done, as a port of Izquierdo's CE_orientation): 2-D point agent with a chemical sensor climbing a gradient (C. elegans-style
    klinotaxis). New body: position, heading, sensor at the head; fitness = final/mean distance to peak.
 2. **Visual-body variants** (reuse `src/sim/agents/visual/body.ts`): orientation/pointing, selective
-   attention (two falling objects, catch both), relational categorization (is this object larger than
-   the previous one?), delayed response / short-term memory.
+   attention (two falling objects, catch both), relational categorization (done, as a port of relcat), delayed response / short-term memory.
 3. **Hexapod walker**: six copies of the leg body coupled through the CTRNN (Beer 1995 / Beer, Chiel &
    Gallagher 1999); gaits from coupled CPGs; reuse `src/sim/agents/legged/body.ts`.
 4. **Learning without synaptic plasticity**: associative learning carried by circuit dynamics

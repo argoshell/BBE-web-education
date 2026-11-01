@@ -5,11 +5,13 @@ import { chemotaxisAgent } from './chemotaxis';
 import { leggedAgent } from './legged';
 import { oscillatorAgent } from './oscillator';
 import { visualAgent } from './visual';
+import { relcatAgent } from './relcat';
 import { guidedAgent } from './visual/guided';
 
 export const agentModules: Record<string, AnyAgentModule> = {
   [leggedAgent.id]: leggedAgent,
   [visualAgent.id]: visualAgent,
+  [relcatAgent.id]: relcatAgent,
   [guidedAgent.id]: guidedAgent,
   [oscillatorAgent.id]: oscillatorAgent,
   [chemotaxisAgent.id]: chemotaxisAgent,
