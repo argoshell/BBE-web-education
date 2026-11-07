@@ -15,6 +15,7 @@ import { CompareCard, LoadedBanner } from '../common';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { useExplorer } from '../useExplorer';
 import { GuidedControls, GuidedEvoConfigPanel } from './GuidedControls';
+import { GuidedInfoCard } from './GuidedInfo';
 import { GuidedArena, GuidedScoreMap, GuidedTrialsOverview } from './GuidedViews';
 
 const agent = guidedAgent;
@@ -182,6 +183,8 @@ export function GuidedPage() {
             <GuidedScoreMap results={results} task={state.task} selected={state.trial} onSelect={select} />
           </div>
         </div>
+
+        <GuidedInfoCard state={state} time={rec.t[cur]} onSeekTime={(t) => ex.setIdx(Math.max(0, Math.round(t / state.dt)))} />
 
         {ex.circuitView && <AgentDynamicsCard view={ex.circuitView} rec={rec} idx={cur} onCircuit={(circuit) => ex.setState({ ...state, circuit })} />}
 

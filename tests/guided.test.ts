@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  decodeGuided, defaultGrid, GENOME_SIZE, guidedAgent, guidedFitness, guidedGenomeLabels, guidedPresetList,
+  decodeGuided, defaultGrid, GENOME_SIZE, gridTrials, guidedAgent, guidedFitness, guidedGenomeLabels, guidedPresetList,
   guidedTaskFitness, runAllGuidedTrials, runGuidedTrial, CIRCUITSIZE, NUMRAYS, type GuidedTask,
 } from '../src/sim/agents/visual/guided';
 
@@ -101,5 +101,25 @@ describe('guided task presets', () => {
     expect(loadedPreset(size)?.task).toBe('size');
     const edited = { ...size, circuit: { ...size.circuit, taus: size.circuit.taus.map((t, i) => (i === 0 ? t + 1e-3 : t)) } };
     expect(loadedPreset(edited)).toBeUndefined();
+  });
+});
+
+import { ensembleGrid, guidedEnsemble } from '../src/sim/agents/visual/guidedEnsemble';
+import { infoOverTime } from '../src/sim/analysis/information';
+
+describe('guided information ensemble', () => {
+  it('has one trial per grid trial and carries information about the response by the end', () => {
+    for (const task of ['size', 'aperture'] as const) {
+      const p = guidedPresetList.find((q) => q.task === task)!;
+      const s = { ...guidedAgent.defaultParams(), ...decodeGuided(p.genome), task };
+      const e = guidedEnsemble(s, ensembleGrid(s.grid, false));
+      expect(e.trials).toBe(gridTrials(s.grid).length);
+      expect(e.channels).toHaveLength(CIRCUITSIZE + 1);
+      for (const c of e.channels) for (const d of c.data) expect(d.length).toBe(e.t.length);
+      const { mi, hS } = infoOverTime(e, 0, { bins: 4, binning: 'width', stride: 1 });
+      // At the start nothing distinguishes the response; at the end Δx does (catch vs avoid)
+      expect(mi[0][0]).toBeLessThan(0.05 * hS);
+      expect(mi[0][mi[0].length - 1]).toBeGreaterThan(0.6 * hS);
+    }
   });
 });
