@@ -7,6 +7,7 @@ import { oscillatorAgent } from './oscillator';
 import { visualAgent } from './visual';
 import { relcatAgent } from './relcat';
 import { guidedAgent } from './visual/guided';
+import { learningAgent } from './learning';
 
 export const agentModules: Record<string, AnyAgentModule> = {
   [leggedAgent.id]: leggedAgent,
@@ -15,4 +16,5 @@ export const agentModules: Record<string, AnyAgentModule> = {
   [guidedAgent.id]: guidedAgent,
   [oscillatorAgent.id]: oscillatorAgent,
   [chemotaxisAgent.id]: chemotaxisAgent,
+  [learningAgent.id]: learningAgent,
 };

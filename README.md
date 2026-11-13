@@ -8,7 +8,8 @@ Agents so far: a bodiless **CTRNN oscillator** (central pattern generator), the 
 ([VisuallyGuidedAgent](https://github.com/edizquierdo/VisuallyGuidedAgent): object-size discrimination and perceiving
 affordances), and **C. elegans klinotaxis** (Izquierdo's [CE_orientation](https://github.com/edizquierdo/CE_orientation)
 model; Izquierdo & Lockery 2010, Izquierdo & Beer 2013), and **relational categorization** (a port of N. Rodriguez's
-[relcat](https://github.com/Nathaniel-Rodriguez/relcat); Williams, Beer & Gasser 2008, Beer & Williams 2015). For each:
+[relcat](https://github.com/Nathaniel-Rodriguez/relcat); Williams, Beer & Gasser 2008, Beer & Williams 2015), and **associative learning without synaptic plasticity**
+(Izquierdo, Harvey & Beer 2008, from the paper; its published circuits are the presets). For each:
 
 - an animated body/arena, neural traces, and a phase portrait with flow, nullclines and fixed points
   for any two neurons, all linked to one time cursor (plus equilibria-vs-leg-angle sweeps for sensory walkers,

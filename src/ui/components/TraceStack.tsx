@@ -82,7 +82,9 @@ export function TraceStack({ rec, rows, idx, onSeek, window: [i0, i1], stanceKey
       let prev = NaN;
       for (let k = i0; k <= end; k += stride) {
         const px = x(t[k]), py = y(data[k]);
-        if (k === i0) ctx.moveTo(px, py);
+        // NaN marks a gap (e.g. a value defined only during evaluation windows)
+        if (Number.isNaN(data[k])) { prev = NaN; continue; }
+        if (k === i0 || Number.isNaN(prev)) ctx.moveTo(px, py);
         else if (row.step) { ctx.lineTo(px, y(prev)); ctx.lineTo(px, py); }
         else ctx.lineTo(px, py);
         prev = data[k];

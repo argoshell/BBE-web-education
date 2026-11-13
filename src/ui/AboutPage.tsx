@@ -48,6 +48,12 @@ export function AboutPage() {
           <li>Beer, R.D. and Williams, P.L. (2015). Information processing and dynamics in minimally cognitive agents. <i>Cognitive Science</i> 39(1):1–38.</li>
           <li>Python code by Nathaniel Rodriguez: <a href="https://github.com/Nathaniel-Rodriguez/relcat" target="_blank" rel="noreferrer">relcat</a>. Ported from commit e12fc84, which carries no license, so it is fetched for testing and not redistributed. Body, rays, network, genome decoding and fitness are checked step by step against it, including its quirks (neuron outputs σ(g·y + θ), ray hits on the far side of the circle, the 20–65 size grid).</li>
         </ul>
+        <h3>Associative learning</h3>
+        <ul>
+          <li>Izquierdo, E., Harvey, I. and Beer, R.D. (2008). Associative learning on a continuum in evolved dynamical neural networks. <i>Adaptive Behavior</i> 16(6):361–384.</li>
+          <li>Phattanasri, P., Chiel, H.J. and Beer, R.D. (2007). The dynamics of associative learning in evolved model circuits. <i>Adaptive Behavior</i> 15(4):377–396.</li>
+          <li>No code was published, so the task follows the paper. Its two evolved circuits (Tables A1 and A2) are the presets and are used to check the port. The page lists the details the paper leaves open and how they are filled.</li>
+        </ul>
         <h3>Differences from the original</h3>
         <ul>
           <li>Search individuals carry ids and parent ids so lineages can be explored.</li>
