@@ -9,7 +9,8 @@ Agents so far: a bodiless **CTRNN oscillator** (central pattern generator), the 
 affordances), and **C. elegans klinotaxis** (Izquierdo's [CE_orientation](https://github.com/edizquierdo/CE_orientation)
 model; Izquierdo & Lockery 2010, Izquierdo & Beer 2013), and **relational categorization** (a port of N. Rodriguez's
 [relcat](https://github.com/Nathaniel-Rodriguez/relcat); Williams, Beer & Gasser 2008, Beer & Williams 2015), and **associative learning without synaptic plasticity**
-(Izquierdo, Harvey & Beer 2008, from the paper; its published circuits are the presets). For each:
+(Izquierdo, Harvey & Beer 2008, from the paper; its published circuits are the presets), and Beer's **minimally cognitive
+behavior** tasks built from the papers: orientation (Beer 1996), delayed response and selective attention (Slocum, Downey & Beer 2000). For each:
 
 - an animated body/arena, neural traces, and a phase portrait with flow, nullclines and fixed points
   for any two neurons, all linked to one time cursor (plus equilibria-vs-leg-angle sweeps for sensory walkers,

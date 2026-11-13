@@ -1,0 +1,2 @@
+import { orientationAgent, orientPerformance, randomOrientTrials, orientEvalTrials } from '../../src/sim/agents/minimal/orientation';
+for (const p of orientationAgent.presets) { const s = p.params(); console.log(p.name, 'eval', orientPerformance(s, orientEvalTrials, 0.1).toFixed(4), 'random100', orientPerformance(s, randomOrientTrials(100, 1996), 0.1).toFixed(4), 'dt/2', orientPerformance(s, orientEvalTrials, 0.05).toFixed(4)); }

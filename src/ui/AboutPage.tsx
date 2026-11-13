@@ -48,6 +48,14 @@ export function AboutPage() {
           <li>Beer, R.D. and Williams, P.L. (2015). Information processing and dynamics in minimally cognitive agents. <i>Cognitive Science</i> 39(1):1–38.</li>
           <li>Python code by Nathaniel Rodriguez: <a href="https://github.com/Nathaniel-Rodriguez/relcat" target="_blank" rel="noreferrer">relcat</a>. Ported from commit e12fc84, which carries no license, so it is fetched for testing and not redistributed. Body, rays, network, genome decoding and fitness are checked step by step against it, including its quirks (neuron outputs σ(g·y + θ), ray hits on the far side of the circle, the 20–65 size grid).</li>
         </ul>
+        <h3>Minimally cognitive behavior</h3>
+        <ul>
+          <li>Beer, R.D. (1996). Toward the evolution of dynamical neural networks for minimally cognitive behavior. In P. Maes et al. (Eds.), <i>From Animals to Animats 4</i>, pp. 421–429. MIT Press.</li>
+          <li>Slocum, A.C., Downey, D.C. and Beer, R.D. (2000). Further experiments in the evolution of minimally cognitive behavior: From perceiving affordances to selective attention. In J. Meyer et al. (Eds.), <i>From Animals to Animats 6</i>, pp. 430–439. MIT Press.</li>
+          <li>Gallagher, J.C. and Beer, R.D. (1999). Evolution and analysis of dynamical neural networks for agents integrating vision, locomotion, and short-term memory. <i>Proc. GECCO 1999</i>, pp. 1273–1280.</li>
+          <li>Goldenberg, E., Garcowski, J. and Beer, R.D. (2004). May we have your attention: Analysis of a selective attention task. <i>From Animals to Animats 8</i>, pp. 49–56.</li>
+          <li>No code was published for these experiments. The orientation, delayed response and selective attention pages follow the papers, reuse the tested geometry of Beer&apos;s VisualAgent, and match the papers&apos; parameter counts. Each page lists what the papers leave open.</li>
+        </ul>
         <h3>Associative learning</h3>
         <ul>
           <li>Izquierdo, E., Harvey, I. and Beer, R.D. (2008). Associative learning on a continuum in evolved dynamical neural networks. <i>Adaptive Behavior</i> 16(6):361–384.</li>

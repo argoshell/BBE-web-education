@@ -8,6 +8,9 @@ import { visualAgent } from './visual';
 import { relcatAgent } from './relcat';
 import { guidedAgent } from './visual/guided';
 import { learningAgent } from './learning';
+import { orientationAgent } from './minimal/orientation';
+import { memoryAgent } from './minimal/memory';
+import { attentionAgent } from './minimal/attention';
 
 export const agentModules: Record<string, AnyAgentModule> = {
   [leggedAgent.id]: leggedAgent,
@@ -17,4 +20,7 @@ export const agentModules: Record<string, AnyAgentModule> = {
   [oscillatorAgent.id]: oscillatorAgent,
   [chemotaxisAgent.id]: chemotaxisAgent,
   [learningAgent.id]: learningAgent,
+  [orientationAgent.id]: orientationAgent,
+  [memoryAgent.id]: memoryAgent,
+  [attentionAgent.id]: attentionAgent,
 };

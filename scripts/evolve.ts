@@ -3,6 +3,7 @@
 //   npx tsx scripts/evolve.ts --agent visual --pop 96 --gens 1000 --seed 1 --out visual.json
 //   npx tsx scripts/evolve.ts --agent oscillator --size 3 --cc true --fitness period --period 10
 //   npx tsx scripts/evolve.ts --agent guided --task size|aperture|both --xmode uniform --xprob 0.5 --gens 1000
+//   npx tsx scripts/evolve.ts --agent orientation --kind reactive|dynamical --pop 50 --gens 200
 //   npx tsx scripts/evolve.ts --agent chemotaxis --gens 100 --xprob 0.5 --xmode uniform --elitism 0.1 (main.cpp's settings)
 // Prints progress to stderr and the best individual's parameters as JSON.
 
@@ -51,6 +52,10 @@ function isNumeric(v: string | undefined): v is string {
   return v !== undefined && v.trim() !== '' && Number.isFinite(Number(v));
 }
 
+if (agent.id === 'memory') evo = { ...evo, task: args.task ?? 'vertical', blindAfter: Number(args.blind ?? evo.blindAfter) };
+if (agent.id === 'attention') evo = { ...evo, inter: Number(args.inter ?? evo.inter), trials: Number(args.trials ?? evo.trials), seed: Number(args.trialseed ?? evo.seed) };
+if (agent.id === 'orientation') evo = { ...evo, kind: args.kind ?? 'dynamical' };
+if (agent.id === 'learning') evo = { ...evo, mode: args.mode ?? evo.mode, size: Number(args.size ?? evo.size), stage: Number(args.stage ?? evo.stage), sequences: Number(args.sequences ?? evo.sequences) };
 if (agent.id === 'relcat') evo = { ...evo, symmetric: args.symmetric === 'true' };
 const search = {
   ...defaultSearchConfig,
