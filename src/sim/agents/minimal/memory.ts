@@ -94,7 +94,7 @@ export function simulateMemory(s: MemoryState): Recording {
 
 interface PresetFile { name: string; task: MemoryTask; seed: number; fitness: number; genome: number[] }
 
-function fromGenome(task: MemoryTask, genome: ArrayLike<number>, ranges = slocumRanges, dt = 0.1, blindAfter = 0.1): MemoryState {
+export function memoryStateFor(task: MemoryTask, genome: ArrayLike<number>, ranges = slocumRanges, dt = 0.1, blindAfter = 0.1): MemoryState {
   const arch = memoryArchs[task];
   return { arch, task, circuit: decode(genome, arch, ranges), trial: { x: 35, vx: task === 'diagonal' ? 0.5 : 0 }, blindAfter, dt };
 }
@@ -106,13 +106,13 @@ export const memoryAgent: AgentModule<MemoryState, MemoryEvoConfig> = {
 
   defaultParams: () => {
     const p = (presets as PresetFile[])[0];
-    return p ? fromGenome(p.task, p.genome) : fromGenome('vertical', new Array(genomeSize(memoryArchs.vertical)).fill(0));
+    return p ? memoryStateFor(p.task, p.genome) : memoryStateFor('vertical', new Array(genomeSize(memoryArchs.vertical)).fill(0));
   },
 
   presets: (presets as PresetFile[]).map((p) => ({
     name: `${p.name} (${(p.fitness * 100).toFixed(1)}%)`,
     description: `Evolved by this site's TSearch, seed ${p.seed}.`,
-    params: () => fromGenome(p.task, p.genome),
+    params: () => memoryStateFor(p.task, p.genome),
   })),
 
   simulate: simulateMemory,
@@ -121,7 +121,7 @@ export const memoryAgent: AgentModule<MemoryState, MemoryEvoConfig> = {
 
   defaultEvoConfig: (s) => ({ task: s.task, ranges: structuredClone(slocumRanges), dt: s.dt, blindAfter: s.blindAfter }),
   genomeSize: (e) => genomeSize(memoryArchs[e.task]),
-  decode: (g, e) => fromGenome(e.task, g, e.ranges, e.dt, e.blindAfter),
+  decode: (g, e) => memoryStateFor(e.task, g, e.ranges, e.dt, e.blindAfter),
   evaluate: (g, e) => memoryPerformance({ arch: memoryArchs[e.task], circuit: decode(g, memoryArchs[e.task], e.ranges) }, e.task, memoryEvalTrials(e.task), e.dt, e.blindAfter),
   genomeLabels: (e) => genomeLabels(memoryArchs[e.task]),
 };

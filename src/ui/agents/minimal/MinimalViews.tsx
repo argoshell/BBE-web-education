@@ -13,7 +13,8 @@ export function FallArena({ rec, idx, eye, objects, colors, note }: { rec: Recor
   const theme = useTheme();
   const { boxRef, canvasRef } = useCanvas((w) => Math.min(380, Math.round(w * 0.62)), (ctx, w, h) => {
     const ch = rec.channels, i = Math.min(idx, rec.t.length - 1);
-    const pad = 8, s = Math.min((w - 2 * pad) / ENV_WIDTH, (h - 2 * pad) / (ENV_HEIGHT + BODY_SIZE / 2));
+    // Headroom above the world for an object at its top edge
+    const pad = 8, s = Math.min((w - 2 * pad) / ENV_WIDTH, (h - 2 * pad) / (ENV_HEIGHT + BODY_SIZE / 2 + OBJECT_SIZE / 2));
     const ox = (w - ENV_WIDTH * s) / 2;
     const X = (x: number) => ox + (x + ENV_WIDTH / 2) * s, Y = (y: number) => h - pad - (y + BODY_SIZE / 2) * s;
     ctx.fillStyle = theme.surface2;

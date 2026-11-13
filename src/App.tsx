@@ -7,6 +7,8 @@ const GuidedPage = lazy(() => import('./ui/agents/visual/GuidedPage').then((m) =
 const OscillatorPage = lazy(() => import('./ui/agents/oscillator/OscillatorPage').then((m) => ({ default: m.OscillatorPage })));
 const RelcatPage = lazy(() => import('./ui/agents/relcat/RelcatPage').then((m) => ({ default: m.RelcatPage })));
 const OrientationPage = lazy(() => import('./ui/agents/minimal/OrientationPage').then((m) => ({ default: m.OrientationPage })));
+const MemoryPage = lazy(() => import('./ui/agents/minimal/MemoryPage').then((m) => ({ default: m.MemoryPage })));
+const AttentionPage = lazy(() => import('./ui/agents/minimal/AttentionPage').then((m) => ({ default: m.AttentionPage })));
 const LearningPage = lazy(() => import('./ui/agents/learning/LearningPage').then((m) => ({ default: m.LearningPage })));
 const ChemotaxisPage = lazy(() => import('./ui/agents/chemotaxis/ChemotaxisPage').then((m) => ({ default: m.ChemotaxisPage })));
 import { AboutPage } from './ui/AboutPage';
@@ -20,6 +22,8 @@ const pages = [
   { id: 'relcat', label: 'Relational categorization', ready: true },
   { id: 'chemotaxis', label: 'Klinotaxis (C. elegans)', ready: true },
   { id: 'orientation', label: 'Orientation', ready: true },
+  { id: 'memory', label: 'Delayed response', ready: true },
+  { id: 'attention', label: 'Selective attention', ready: false },
   { id: 'learning', label: 'Associative learning', ready: true },
   { id: 'about', label: 'About', ready: true },
 ];
@@ -48,7 +52,7 @@ export default function App() {
         <span className="muted small">Web port of Randall Beer's EvolutionaryAgents</span>
       </header>
       <Suspense fallback={<p className="muted" style={{ padding: 16 }}>Loading…</p>}>
-        {page === 'about' ? <AboutPage /> : page === 'visual' ? <VisualPage key="visual" /> : page === 'guided' ? <GuidedPage key="guided" /> : page === 'relcat' ? <RelcatPage key="relcat" /> : page === 'orientation' ? <OrientationPage key="orientation" /> : page === 'learning' ? <LearningPage key="learning" /> : page === 'chemotaxis' ? <ChemotaxisPage key="chemotaxis" /> : page === 'oscillator' ? <OscillatorPage key="oscillator" /> : <WalkerPage key="walker" />}
+        {page === 'about' ? <AboutPage /> : page === 'visual' ? <VisualPage key="visual" /> : page === 'guided' ? <GuidedPage key="guided" /> : page === 'relcat' ? <RelcatPage key="relcat" /> : page === 'orientation' ? <OrientationPage key="orientation" /> : page === 'memory' ? <MemoryPage key="memory" /> : page === 'attention' ? <AttentionPage key="attention" /> : page === 'learning' ? <LearningPage key="learning" /> : page === 'chemotaxis' ? <ChemotaxisPage key="chemotaxis" /> : page === 'oscillator' ? <OscillatorPage key="oscillator" /> : <WalkerPage key="walker" />}
       </Suspense>
     </>
   );
