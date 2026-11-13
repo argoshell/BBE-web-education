@@ -44,13 +44,19 @@ export function randomMemoryTrials(task: MemoryTask, count: number, seed: number
 
 export const memoryAssumptions = [
   'The agent counts as moving, and goes blind, once it is 0.1 units from where it started. The paper says only "as soon as an agent began to move". A bilaterally symmetric agent stays exactly still until something breaks the symmetry, but floating-point rounding makes its velocity tiny rather than zero, so a threshold is needed.',
-  'Objects start at the top of the 275-high world. A trial ends when the object\'s center reaches the top of the agent (y = 15).',
+  "Objects start at height 190, inside the rays' reach. The paper says a sufficiently peripheral object \"will immediately intersect the outermost ray\", which rules out starting at the world's top (275). A trial ends when the object's center reaches the top of the agent (y = 15).",
   'All CTRNN gains except the sensors\' and interneurons\' are 1. This gives the paper\'s parameter counts (56 and 82).',
   'The evaluation trials use positive offsets only, as in the paper. A symmetric agent behaves the same on the mirror image.',
   'Search: this site\'s TSearch, not the paper\'s GA settings.',
 ];
 
-const fall = (t: MemoryTrial): Fall => ({ x: t.x, vx: t.vx, vy: -FALL_SPEED });
+/**
+ * Assumed start height, inside the rays' reach. The paper notes that "a sufficiently peripheral object will
+ * immediately intersect the outermost ray", which can only happen if objects start within reach of the rays
+ * (about 210), not at the world's top (275). Same height as the selective attention task.
+ */
+export const MEMORY_START_Y = 190;
+const fall = (t: MemoryTrial): Fall => ({ x: t.x, vx: t.vx, vy: -FALL_SPEED, y: MEMORY_START_Y });
 
 export interface MemoryState extends MinimalController {
   task: MemoryTask;

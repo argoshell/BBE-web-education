@@ -23,7 +23,7 @@ const pages = [
   { id: 'chemotaxis', label: 'Klinotaxis (C. elegans)', ready: true },
   { id: 'orientation', label: 'Orientation', ready: true },
   { id: 'memory', label: 'Delayed response', ready: true },
-  { id: 'attention', label: 'Selective attention', ready: false },
+  { id: 'attention', label: 'Selective attention', ready: true },
   { id: 'learning', label: 'Associative learning', ready: true },
   { id: 'about', label: 'About', ready: true },
 ];

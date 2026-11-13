@@ -7,7 +7,7 @@
 //   npx tsx scripts/evolve.ts --agent chemotaxis --gens 100 --xprob 0.5 --xmode uniform --elitism 0.1 (main.cpp's settings)
 // Prints progress to stderr and the best individual's parameters as JSON.
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import type { AnyAgentModule } from '../src/sim/agent';
 import { agentModules } from '../src/sim/agents/registry';
 import type { ControllerKind } from '../src/sim/agents/legged/body';
@@ -71,15 +71,21 @@ const search = {
   elitistFraction: Number(args.elitism ?? defaultSearchConfig.elitistFraction),
 };
 
-const s = new TSearch(search, localEvaluator((g, rs) => agent.evaluate(g, evo, rs)));
+// --init run.json [--radius r]: search a neighbourhood of an earlier result's genome (search vector g in [-1, 1]
+// maps to init + r·g, clipped to [-1, 1]), e.g. to continue evolution on a larger trial set.
+const init: number[] | null = args.init ? JSON.parse(readFileSync(args.init, 'utf8')).genome : null;
+const radius = Number(args.radius ?? 0.3);
+const toGenome = (g: ArrayLike<number>) => (init ? Float64Array.from(init, (v, k) => Math.max(-1, Math.min(1, v + radius * g[k]))) : Float64Array.from(g));
+const s = new TSearch(search, localEvaluator((g, rs) => agent.evaluate(toGenome(g), evo, rs)));
 const t0 = Date.now();
 const every = Math.max(1, Math.round(search.maxGenerations / 20));
 await s.run((g) => {
   if (g.gen % every === 0 || g.gen === search.maxGenerations)
     console.error(`gen ${g.gen} best ${g.bestSoFar.toFixed(4)} avg ${g.avg.toFixed(4)} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
 });
-const best = agent.decode(s.bestVector, evo);
+const bestGenome = toGenome(s.bestVector);
+const best = agent.decode(bestGenome, evo);
 console.error(`done in ${((Date.now() - t0) / 1000).toFixed(1)}s; best ${s.bestPerf.toFixed(4)}`);
-const out = { agent: agent.id, seed: search.seed, fitness: s.bestPerf, evo, genome: Array.from(s.bestVector), params: best };
+const out = { agent: agent.id, seed: search.seed, fitness: s.bestPerf, evo, genome: Array.from(bestGenome), params: best };
 if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 1));
 else console.log(JSON.stringify(out));

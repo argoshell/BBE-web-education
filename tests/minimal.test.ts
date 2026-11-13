@@ -9,7 +9,7 @@ import { MovingCircle, ProximityAgent, runFalls } from '../src/sim/agents/minima
 import { archSize, decode, genomeSize, mirror } from '../src/sim/agents/minimal/network';
 import { orientArchs, orientationAgent, orientEvalTrials, orientPerformance } from '../src/sim/agents/minimal/orientation';
 import { memoryAgent, memoryArchs, memoryEvalTrials, memoryPerformance } from '../src/sim/agents/minimal/memory';
-import { attentionAgent, attentionArch, categorize, categoryIndex, randomAttentionTrials, validTrial } from '../src/sim/agents/minimal/attention';
+import { attentionAgent, attentionArch, attentionPerformance, categorize, categoryIndex, randomAttentionTrials, validTrial } from '../src/sim/agents/minimal/attention';
 import { Pi, VisualAgent, VisualObject } from '../src/sim/agents/visual/body';
 
 const randomGenome = (n: number, seed: number) => { const rs = new RandomState(seed); return Array.from({ length: n }, () => rs.uniformRandom(-1, 1)); };
@@ -95,6 +95,9 @@ describe('minimal tasks: definitions', () => {
       const s = p.params(), f = Number(/\(([\d.]+)%\)/.exec(p.name)![1]) / 100;
       expect(memoryPerformance(s, s.task, memoryEvalTrials(s.task), 0.1, s.blindAfter)).toBeCloseTo(f, 3);
     }
-    expect(attentionAgent.presets.length).toBeGreaterThanOrEqual(0);
+    for (const p of attentionAgent.presets) {
+      const s = p.params(), f = Number(/\(([\d.]+)%\)/.exec(p.name)![1]) / 100, e = attentionAgent.defaultEvoConfig(s);
+      expect(attentionPerformance(s, randomAttentionTrials(e.trials, e.seed), 0.1)).toBeCloseTo(f, 3);
+    }
   });
 });

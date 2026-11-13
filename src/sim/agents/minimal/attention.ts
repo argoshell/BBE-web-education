@@ -87,7 +87,7 @@ export function categoryIndex(c: TrialCategory): number {
 export const attentionAssumptions = [
   `Objects start at height ${START_Y}, so that both can be inside the field of view as Goldenberg et al. require. The papers don't give a height, and the rays only reach y ≈ 213–220.`,
   'Initial offsets are drawn from ±70 and kept only when both objects are visible at the start and the agent could travel from the first landing point to the second (|x₁ − x₂| / |t₁ − t₂| ≤ 0.7 · 5).',
-  'Evolution uses a fixed set of random trials instead of the papers\' shaping schedule, which adds a trial whenever the best agent passes a threshold and later swaps in trials the agent fails.',
+  "Evolution uses fixed sets of random trials instead of the papers' shaping schedule, which adds a trial whenever the best agent passes a threshold and later swaps in trials the agent fails. The preset was evolved on 35 trials (1200 generations), then refined around the best genome on 100 trials (400 generations). It generalizes less well than the paper's agent, mostly on object-permanence trials.",
   'Trial categories: "passing objects" means the object that starts farther from the agent lands first. "Object permanence" means an agent that caught the first object exactly could not see the second at that moment.',
   'A trial ends for each object when its center reaches the top of the agent (y = 15). That object is then removed.',
 ];
@@ -125,8 +125,8 @@ export function simulateAttention(s: AttentionState): Recording {
   return rec;
 }
 
-/** The default trial: the farther object falls faster and the slower one drifts out of view. */
-export const exampleTrial: AttentionTrial = { x1: -45, vx1: 1.2, vy1: 3.6, x2: 20, vx2: 1.5, vy2: 1.4 };
+/** The default trial: the farther object falls faster, and the slower one is out of view when the first lands. */
+export const exampleTrial: AttentionTrial = { x1: -44.02, vx1: -1.55, vy1: 3.79, x2: 35.64, vx2: -1.21, vy2: 1.84 };
 
 interface PresetFile { name: string; inter: number; seed: number; fitness: number; genome: number[] }
 
@@ -147,7 +147,7 @@ export const attentionAgent: AgentModule<AttentionState, AttentionEvoConfig> = {
 
   presets: (presets as PresetFile[]).map((p) => ({
     name: `${p.name} (${(p.fitness * 100).toFixed(1)}%)`,
-    description: `Evolved by this site's TSearch, seed ${p.seed}.`,
+    description: `Evolved by this site's TSearch on 35 random trials, then refined around the best genome on 100 (seed ${p.seed}).`,
     params: () => fromGenome(p.inter, p.genome),
   })),
 
@@ -155,7 +155,7 @@ export const attentionAgent: AgentModule<AttentionState, AttentionEvoConfig> = {
   channels: (s) => minimalChannels(s, attentionEye, 2),
   circuitView: minimalCircuitView,
 
-  defaultEvoConfig: (s) => ({ inter: s.arch.inter, ranges: structuredClone(slocumRanges), dt: s.dt, trials: 35, seed: 1 }),
+  defaultEvoConfig: (s) => ({ inter: s.arch.inter, ranges: structuredClone(slocumRanges), dt: s.dt, trials: 100, seed: 2 }),
   genomeSize: (e) => genomeSize(attentionArch(e.inter)),
   decode: (g, e) => fromGenome(e.inter, g, e.ranges, e.dt),
   evaluate: (g, e) => attentionPerformance({ arch: attentionArch(e.inter), circuit: decode(g, attentionArch(e.inter), e.ranges) }, randomAttentionTrials(e.trials, e.seed), e.dt),
