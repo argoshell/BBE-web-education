@@ -8,8 +8,10 @@
 // The population is re-evaluated every generation (the trial set changes). Evaluation runs in worker threads.
 //
 //   npx tsx scripts/shape-attention.ts --inter 4 --gens 9000 --seed 1 --workers 8 [--mutvar 1 --clip false] --out run.json
+//   --resume earlier.json [--radius 0.2]: continue shaping from an earlier run's best genome and trial set (the search
+//   explores genome + radius·g, g in [−1, 1]).
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { RandomState } from '../src/sim/core/random';
@@ -23,7 +25,9 @@ import { CTRNN } from '../src/sim/core/ctrnn';
 const args = Object.fromEntries(
   process.argv.slice(2).reduce<[string, string][]>((acc, a, i, all) => (a.startsWith('--') ? [...acc, [a.slice(2), all[i + 1]]] : acc), []),
 );
-const inter = Number(args.inter ?? 4), gens = Number(args.gens ?? 9000), seed = Number(args.seed ?? 1);
+const resume = args.resume ? JSON.parse(readFileSync(args.resume, 'utf8')) : null;
+const radius = Number(args.radius ?? 0.2);
+const inter = resume ? resume.evo.inter : Number(args.inter ?? 4), gens = Number(args.gens ?? 9000), seed = Number(args.seed ?? 1);
 const nWorkers = Number(args.workers ?? Math.max(1, Math.floor(availableParallelism() / 4)));
 const MAX_TRIALS = 35, STALL = 600, HARD = 170;
 const arch = attentionArch(inter);
@@ -37,7 +41,7 @@ function evalChunk(w: Worker, genomes: Float64Array[]): Promise<number[]> {
   return new Promise((resolve) => {
     const on = (m: { id: number; perfs: number[] }) => { if (m.id === id) { w.off('message', on); resolve(m.perfs); } };
     w.on('message', on);
-    w.postMessage({ id, genomes, trials });
+    w.postMessage({ id, genomes: genomes.map(toGenome), trials });
   });
 }
 const evaluator: BatchEvaluator = async (jobs) => {
@@ -45,6 +49,11 @@ const evaluator: BatchEvaluator = async (jobs) => {
   const parts = await Promise.all(workers.map((w, k) => evalChunk(w, jobs.slice(k * per, (k + 1) * per).map((j) => j.genome))));
   return parts.flat().map((perf, k) => ({ perf, rs: jobs[k].rs }));
 };
+
+/** Search vector → genome (identity, or a neighbourhood of the resumed genome). */
+function toGenome(g: ArrayLike<number>): Float64Array {
+  return resume ? Float64Array.from(resume.genome as number[], (v, k) => v + radius * g[k]) : Float64Array.from(g);
+}
 
 // ---- shaping
 const trialRs = new RandomState(1000 + seed);
@@ -81,13 +90,14 @@ const search = {
 // The first trial: a random one (the agent cannot be tested before the search starts)
 trials = [randomAttentionTrials(1, 1000 + seed)[0]];
 let lastChange = 0;
+if (resume) trials = resume.trials;
 const s = new TSearch(search, evaluator);
 const t0 = Date.now();
 const log: string[] = [];
 await s.run((g) => {
   const T = (198 - trials.length / 14 - g.gen / 2500) / 200;
   if (g.gen > 0 && (g.best > T || g.gen - lastChange >= STALL)) {
-    const genome = s.archive.get(g.bestId)!.genome;
+    const genome = toGenome(s.archive.get(g.bestId)!.genome);
     const t = hardTrial(genome);
     let what: string;
     if (trials.length < MAX_TRIALS) { trials = [...trials, t]; what = `added trial ${trials.length}`; }
@@ -108,10 +118,10 @@ await Promise.all(workers.map((w) => w.terminate()));
 
 // The final population's best on the final trial set; report generalization on 300 fresh random trials
 const last = s.generations[s.generations.length - 1];
-const genome = Array.from(s.archive.get(last.bestId)!.genome);
+const genome = Array.from(toGenome(s.archive.get(last.bestId)!.genome));
 const circuit = decode(genome, arch, slocumRanges);
 const random300 = attentionPerformance({ arch, circuit }, randomAttentionTrials(300, 2004), 0.1);
 console.error(`done in ${((Date.now() - t0) / 1000).toFixed(0)}s; final best ${last.best.toFixed(4)} on ${trials.length} shaped trials; random 300: ${random300.toFixed(4)}`);
-const out = { agent: 'attention', seed, fitness: last.best, random300, evo: { inter, shaped: true, search }, trials, log, genome };
+const out = { agent: 'attention', seed, fitness: last.best, random300, evo: { inter, shaped: true, search, resumedFrom: args.resume ?? null }, trials, log: [...(resume?.log ?? []), ...log], genome };
 if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 1));
 else console.log(JSON.stringify(out));
