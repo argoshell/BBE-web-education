@@ -96,8 +96,9 @@ describe('minimal tasks: definitions', () => {
       expect(memoryPerformance(s, s.task, memoryEvalTrials(s.task), 0.1, s.blindAfter)).toBeCloseTo(f, 3);
     }
     for (const p of attentionAgent.presets) {
-      const s = p.params(), f = Number(/\(([\d.]+)%\)/.exec(p.name)![1]) / 100, e = attentionAgent.defaultEvoConfig(s);
-      expect(attentionPerformance(s, randomAttentionTrials(e.trials, e.seed), 0.1)).toBeCloseTo(f, 3);
+      // The label gives performance on 300 fresh random trials
+      const s = p.params(), f = Number(/\(([\d.]+)%\)/.exec(p.name)![1]) / 100;
+      expect(attentionPerformance(s, randomAttentionTrials(300, 2004), 0.1)).toBeCloseTo(f, 3);
     }
   });
 });

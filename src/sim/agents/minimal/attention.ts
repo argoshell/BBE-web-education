@@ -87,7 +87,7 @@ export function categoryIndex(c: TrialCategory): number {
 export const attentionAssumptions = [
   `Objects start at height ${START_Y}, so that both can be inside the field of view as Goldenberg et al. require. The papers don't give a height, and the rays only reach y ≈ 213–220.`,
   'Initial offsets are drawn from ±70 and kept only when both objects are visible at the start and the agent could travel from the first landing point to the second (|x₁ − x₂| / |t₁ − t₂| ≤ 0.7 · 5).',
-  "Evolution uses fixed sets of random trials instead of the papers' shaping schedule, which adds a trial whenever the best agent passes a threshold and later swaps in trials the agent fails. The preset was evolved on 35 trials (1200 generations), then refined around the best genome on 100 trials (400 generations). It generalizes less well than the paper's agent, mostly on object-permanence trials.",
+  "The preset was evolved offline with the papers' shaping (scripts/shape-attention.ts). Trials grow from 1 toward 35: a new one is added when the best agent beats T = 198 − n/14 − gen/2500 out of 200, or after 600 generations without a change. Each new trial is the first random one the best agent scores below 170 on, and at 35 trials it replaces the agent's easiest. The run used 10 interneurons, a population of 100, mutation variance 1 and 9000 generations, as in Slocum et al. It had reached 28 trials by the end. Evolution in the browser uses a fixed set of random trials instead.",
   'Trial categories: "passing objects" means the object that starts farther from the agent lands first. "Object permanence" means an agent that caught the first object exactly could not see the second at that moment.',
   'A trial ends for each object when its center reaches the top of the agent (y = 15). That object is then removed.',
 ];
@@ -98,6 +98,11 @@ export interface AttentionState extends MinimalController {
 }
 
 export interface AttentionEvoConfig { inter: number; ranges: Ranges; dt: number; trials: number; seed: number }
+
+/** One trial's performance as the papers define it: (200 − error) / 200, not floored (it can be negative). */
+export function trialPerformance(dx: number[]): number {
+  return (200 - attentionError(dx)) / 200;
+}
 
 export function attentionError(dx: number[]): number {
   return Math.abs(dx[0]) + Math.abs(dx[1]);
@@ -115,20 +120,20 @@ export interface AttentionResult { trial: AttentionTrial; dx: number[]; category
 export function runAttentionTrials(s: AttentionState, trials: AttentionTrial[]): AttentionResult[] {
   return trials.map((trial) => {
     const { paths, out } = samplePaths(s, attentionBody, falls(trial), s.dt);
-    return { trial, dx: out.dx, category: categorize(trial), score: performance(attentionError(out.dx)), paths };
+    return { trial, dx: out.dx, category: categorize(trial), score: trialPerformance(out.dx), paths };
   });
 }
 
 export function simulateAttention(s: AttentionState): Recording {
   const { rec, out } = recordFalls(s, attentionBody, falls(s.trial), s.dt);
-  rec.summary = { dx1: out.dx[0], dx2: out.dx[1], score: performance(attentionError(out.dx)) };
+  rec.summary = { dx1: out.dx[0], dx2: out.dx[1], score: trialPerformance(out.dx) };
   return rec;
 }
 
 /** The default trial: the farther object falls faster, and the slower one is out of view when the first lands. */
-export const exampleTrial: AttentionTrial = { x1: -44.02, vx1: -1.55, vy1: 3.79, x2: 35.64, vx2: -1.21, vy2: 1.84 };
+export const exampleTrial: AttentionTrial = { x1: -52.08, vx1: -0.62, vy1: 3, x2: 46.33, vx2: 1.19, vy2: 1.07 };
 
-interface PresetFile { name: string; inter: number; seed: number; fitness: number; genome: number[] }
+interface PresetFile { name: string; inter: number; seed: number; fitness: number; shaped?: boolean; genome: number[] }
 
 function fromGenome(inter: number, genome: ArrayLike<number>, ranges = slocumRanges, dt = 0.1): AttentionState {
   const arch = attentionArch(inter);
@@ -147,7 +152,9 @@ export const attentionAgent: AgentModule<AttentionState, AttentionEvoConfig> = {
 
   presets: (presets as PresetFile[]).map((p) => ({
     name: `${p.name} (${(p.fitness * 100).toFixed(1)}%)`,
-    description: `Evolved by this site's TSearch on 35 random trials, then refined around the best genome on 100 (seed ${p.seed}).`,
+    description: p.shaped
+      ? `Evolved for 9000 generations with the papers' shaping schedule (scripts/shape-attention.ts, seed ${p.seed}); the percentage is its performance on 300 fresh random trials.`
+      : `Evolved by this site's TSearch (seed ${p.seed}).`,
     params: () => fromGenome(p.inter, p.genome),
   })),
 

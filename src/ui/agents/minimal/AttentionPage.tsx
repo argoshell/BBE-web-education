@@ -101,7 +101,7 @@ export function AttentionPage() {
           <div className="stats" style={{ marginBottom: 8 }}>
             <div className="stat"><span className="v num">{fmt(Math.abs(rec.summary.dx1), 1)} / {fmt(Math.abs(rec.summary.dx2), 1)}</span><span className="l">miss: fast / slow object</span></div>
             <div className="stat"><span className="v num">{fmt(rec.summary.score * 100, 1)}%</span><span className="l">this trial</span></div>
-            <div className="stat"><span className="v num">{fmt(evalPerf * 100, 1)}%</span><span className="l">{evalTrials.length} evaluation trials</span></div>
+            <div className="stat"><span className="v num">{fmt(evalPerf * 100, 1)}%</span><span className="l">{evalTrials.length} trials used by in-browser evolution</span></div>
             <div className="stat"><span className="v num">{fmt(testPerf * 100, 1)}%</span><span className="l">300 random trials (paper&apos;s best: 94.2%)</span></div>
           </div>
           <div className="split-2">
@@ -133,11 +133,11 @@ export function AttentionPage() {
               </tbody>
             </table>
             <div>
-              <div className="small secondary" style={{ marginBottom: 4 }}>Hardest trials for this agent (click to load):</div>
+              <div className="small secondary" style={{ marginBottom: 4 }}>Hardest trials for this agent, by total miss distance (click to load):</div>
               <div className="inline small" style={{ flexWrap: 'wrap', gap: 4 }}>
                 {worst.map((r, k) => (
                   <button key={k} className="chip" onClick={() => setTrial(r.trial)}>
-                    {fmt(r.score * 100, 0)}% · {['plain', 'passing', 'permanence', 'both'][categoryIndex(r.category)]}
+                    miss {fmt(Math.abs(r.dx[0]) + Math.abs(r.dx[1]), 0)} · {['plain', 'passing', 'permanence', 'both'][categoryIndex(r.category)]}
                   </button>
                 ))}
               </div>
@@ -160,7 +160,7 @@ export function AttentionPage() {
             <IntField label="trial seed" value={ex.evoConfig.seed} min={1} max={1e6} onChange={(seed) => ex.setEvoConfig({ ...ex.evoConfig, seed })} />
             <p className="small muted">Bilaterally symmetric: 9 ray neurons, the chosen number of interneurons and 2 motor neurons, fully interconnected (the paper used 10
               interneurons, 146 genes; Goldenberg et al. found 2 can do as well). Fitness: (200 − mean of |miss₁| + |miss₂|) / 200. Slocum et al. ran 9000
-              generations with shaping, which is far longer than a browser run.</p>
+              generations with shaping. That is far longer than a browser run, so the preset was evolved offline with npx tsx scripts/shape-attention.ts, which follows their schedule.</p>
           </>} />
       </div>
     </div>

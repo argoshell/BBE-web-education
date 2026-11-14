@@ -9,7 +9,8 @@ const presets = pairs.map((p) => {
   const base = { name, seed: r.seed, fitness: r.fitness, genome: r.genome.map((g: number) => Number(g.toPrecision(12))) };
   if (agent === 'orientation') return { ...base, kind: r.evo.kind };
   if (agent === 'memory') return { ...base, task: r.evo.task };
-  return { ...base, inter: r.evo.inter };
+  // Shaped runs end on their own trial set; report performance on 300 fresh random trials instead
+  return { ...base, fitness: r.random300 ?? r.fitness, shaped: !!r.evo.shaped, inter: r.evo.inter };
 });
 writeFileSync(out, JSON.stringify(presets) + '\n');
 console.log(presets.map((p) => `${p.name}: ${p.fitness.toFixed(4)}`).join('\n'));
