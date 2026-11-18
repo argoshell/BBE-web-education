@@ -14,9 +14,12 @@ import { fmt } from '../../plot';
 import { useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { MinimalInfoCard } from './MinimalInfo';
+import { attentionEnsemble } from '../../../sim/agents/minimal/ensembles';
 import { AssumptionList, CircuitCards } from './MinimalCommon';
 import { FallArena, PositionsOverTime } from './MinimalViews';
 
+const buildInfo = (s: AttentionState) => attentionEnsemble(s, 300, s.dt);
 const agent = attentionAgent;
 
 function fromUrl(s: unknown): AttentionState | null {
@@ -146,6 +149,13 @@ export function AttentionPage() {
           <p className="small muted">Passing objects: the object that starts farther away lands first, so the agent can&apos;t simply follow the nearest.
             Object permanence: when the first object is caught, the second is out of view, so the agent must remember where it went.</p>
         </div>
+
+        <MinimalInfoCard state={state} build={buildInfo} defaultPair={['relX2', `o${state.circuit.size - 1}`]}
+          summary="what each neuron knows about the two objects, before and after the first catch, across 300 random trials"
+          description={<>Runs 300 random trials and measures the mutual information between properties of the two objects and each neuron&apos;s output,
+            following Williams &amp; Beer (2010) and Beer &amp; Williams (2015). Time is in two phases: 0–1 until the fast object lands, 1–2 until the slow
+            one lands. The key variable is where the slow object will land relative to the fast one. Watch whether the circuit holds that information through
+            the first catch, especially on trials where the slow object is out of view.</>} />
 
         {ex.circuitView && <AgentDynamicsCard view={ex.circuitView} rec={rec} idx={cur} onCircuit={(circuit) => ex.setState({ ...state, circuit })} />}
 

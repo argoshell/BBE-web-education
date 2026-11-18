@@ -15,9 +15,12 @@ import { fmt } from '../../plot';
 import { useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { MinimalInfoCard } from './MinimalInfo';
+import { orientationEnsemble } from '../../../sim/agents/minimal/ensembles';
 import { AssumptionList, CircuitCards } from './MinimalCommon';
 import { FallArena, PositionsOverTime, RelativePaths } from './MinimalViews';
 
+const buildInfo = (s: OrientState) => orientationEnsemble(s, 200, s.dt);
 const agent = orientationAgent;
 
 function fromUrl(s: unknown): OrientState | null {
@@ -125,6 +128,13 @@ export function OrientationPage() {
             colors={objColor} onSelect={(k) => setTrial(results[k].trial)} />
           <p className="small muted">A caught object ends at 0 (the dashed line) at the bottom. Fitness is (200 − mean miss distance) / 200, the paper&apos;s performance as a fraction of its maximum.</p>
         </div>
+
+        <MinimalInfoCard state={state} build={buildInfo} defaultPair={['relX1', `o${state.circuit.size - 1}`]}
+          summary="what each neuron knows about the falling object, over the course of the fall, across 200 random trials"
+          description={<>Runs 200 random trials and measures the mutual information between the object&apos;s motion (where it will land, which side it starts on,
+            its horizontal velocity, its fall speed) and each neuron&apos;s output, following Williams &amp; Beer (2010) and Beer &amp; Williams (2015). Trials
+            fall at different speeds, so time is fall progress, from 0 (start) to 1 (landing). Compare when the motor neurons come to know where the object
+            will land with when the agent&apos;s position (Δx) does.</>} />
 
         {ex.circuitView && <AgentDynamicsCard view={ex.circuitView} rec={rec} idx={cur} onCircuit={(circuit) => ex.setState({ ...state, circuit })} />}
 

@@ -102,3 +102,38 @@ describe('minimal tasks: definitions', () => {
     }
   });
 });
+
+import { infoOverTime } from '../src/sim/analysis/information';
+import { attentionEnsemble, memoryEnsemble, orientationEnsemble, rankGroups } from '../src/sim/agents/minimal/ensembles';
+
+describe('minimal tasks: information ensembles', () => {
+  it('rank groups are balanced', () => {
+    const g = rankGroups([5, 1, 4, 2, 3, 8, 7, 6], 4);
+    expect(Array.from(g)).toEqual([2, 0, 1, 0, 1, 3, 3, 2]);
+  });
+
+  it('have one series per trial and channel on a common time base', () => {
+    for (const e of [
+      orientationEnsemble(orientationAgent.defaultParams(), 40, 0.1, 50),
+      memoryEnsemble(memoryAgent.defaultParams(), 40),
+      attentionEnsemble(attentionAgent.defaultParams(), 40, 0.1, 50),
+    ]) {
+      for (const c of e.channels) {
+        expect(c.data).toHaveLength(e.trials);
+        for (const d of c.data) expect(d.length).toBe(e.t.length);
+      }
+      for (const st of e.stimuli) expect(st.values).toHaveLength(e.trials);
+    }
+  });
+
+  it('a successful attention agent ends up carrying where the slow object lands', () => {
+    const e = attentionEnsemble(attentionAgent.defaultParams(), 120, 0.1, 40);
+    const { mi, hS } = infoOverTime(e, 0, { bins: 4, binning: 'width', stride: 1 });
+    const slow = mi[e.channels.findIndex((c) => c.key === 'relX2')];
+    // At the first catch (phase boundary) the agent sits at the fast object's landing point, so Δx to the slow one reveals the side
+    expect(slow[39]).toBeGreaterThan(0.3 * hS);
+    expect(slow[39]).toBeGreaterThan(slow[slow.length - 1]);
+    // ...and once the slow object is caught too, Δx is near 0 and carries little
+    expect(slow[slow.length - 1]).toBeLessThan(0.3 * hS);
+  });
+});

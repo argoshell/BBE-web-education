@@ -14,9 +14,12 @@ import { fmt } from '../../plot';
 import { useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { MinimalInfoCard } from './MinimalInfo';
+import { memoryEnsemble } from '../../../sim/agents/minimal/ensembles';
 import { AssumptionList, CircuitCards } from './MinimalCommon';
 import { AccuracyPlot, FallArena, PositionsOverTime, RelativePaths } from './MinimalViews';
 
+const buildInfo = (s: MemoryState) => memoryEnsemble(s, 200);
 const agent = memoryAgent;
 
 function fromUrl(s: unknown): MemoryState | null {
@@ -130,6 +133,14 @@ export function MemoryPage() {
             <p className="small muted">Slocum et al. Figures 9 and 11. A perfect blind catcher ends on the dashed diagonal. Errors cluster near the midline (the object reaches the outer ray too late) and at the periphery (every far object looks the same).</p>
           </div>
         </div>
+
+        <MinimalInfoCard state={state} build={buildInfo} defaultPair={['relX1', `o${state.circuit.size - 1}`]}
+          time={rec.t[cur]} onSeekTime={(t) => ex.setIdx(Math.max(0, Math.round(t / state.dt)))}
+          summary="what each neuron knows about the object, before and after the agent goes blind, across 200 random trials"
+          description={<>Runs 200 random trials and measures the mutual information between where the object will land (and, for diagonal falls, its drift)
+            and each neuron&apos;s output at every moment, following Williams &amp; Beer (2010) and Beer &amp; Williams (2015). All trials last the same time.
+            Information picked up by the ray neurons before the agent moves has to be carried by the interneurons and motors once it is blind: this card
+            shows where it goes.</>} />
 
         {ex.circuitView && <AgentDynamicsCard view={ex.circuitView} rec={rec} idx={cur} onCircuit={(circuit) => ex.setState({ ...state, circuit })} />}
 
