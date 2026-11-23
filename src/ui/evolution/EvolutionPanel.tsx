@@ -31,6 +31,9 @@ export function EvolutionPanel({ agent, evoConfig, agentConfig, selectedId, onSe
   const genomeSize = agent.genomeSize(evoConfig);
   const last = run?.generations[run.generations.length - 1];
   const progress = run ? (last?.gen ?? 0) / Math.max(1, run.search.maxGenerations) : 0;
+  // Time left: about one population of evaluations per generation (re-evaluation doubles it)
+  const evalsLeft = run ? (run.search.maxGenerations - (last?.gen ?? 0)) * run.search.populationSize * (run.search.reEvaluate ? 2 : 1) : 0;
+  const secondsLeft = ctl.status === 'running' && ctl.evalsPerSecond > 0 && (last?.gen ?? 0) >= 2 ? evalsLeft / ctl.evalsPerSecond : NaN;
 
   const download = () => {
     const f = ctl.toFile();
@@ -52,9 +55,17 @@ export function EvolutionPanel({ agent, evoConfig, agentConfig, selectedId, onSe
         {run && <span className="small num secondary">
           gen {last?.gen ?? 0}/{run.search.maxGenerations} · best {fmt(last?.bestSoFar ?? 0, 4)}
           {ctl.status === 'running' && ` · ${Math.round(ctl.evalsPerSecond)} evals/s`}
+          {Number.isFinite(secondsLeft) && ` · ${fmtDuration(secondsLeft)} left`}
           {ctl.status === 'loaded' && ' · saved run (view only)'}
         </span>}
       </div>
+      {Number.isFinite(secondsLeft) && secondsLeft > 600 && (
+        <p className="note small" style={{ marginBottom: 8 }}>
+          This run will take about {fmtDuration(secondsLeft)}. It runs in background workers, so the page stays usable, and you can pause it at any time
+          and load any individual found so far. For a quicker run, lower the population or the number of generations
+          {genomeSize > 60 ? ', or use fewer interneurons or evaluation trials' : ''}.
+        </p>
+      )}
       <div className="evo-grid">
         <div>
           <details className="section" open>
@@ -135,4 +146,11 @@ export function EvolutionPanel({ agent, evoConfig, agentConfig, selectedId, onSe
       </div>
     </div>
   );
+}
+
+/** "45 s", "12 min", "2.5 h". */
+function fmtDuration(sec: number): string {
+  if (sec < 90) return `${Math.max(1, Math.round(sec))} s`;
+  if (sec < 5400) return `${Math.round(sec / 60)} min`;
+  return `${(sec / 3600).toFixed(1)} h`;
 }

@@ -11,6 +11,8 @@ import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy, Stale } from '../../components/Busy';
 import { VisualControls, VisualEvoConfigPanel } from './VisualControls';
 import { VisualInfoCard } from './VisualInfo';
 import { TrialsOverview, VisualArena } from './VisualViews';
@@ -39,7 +41,8 @@ export function VisualPage() {
   const [showSensors, setShowSensors] = useState(true);
   const [showStates, setShowStates] = useState(false);
   const [compareInPhase, setCompareInPhase] = useState(true);
-  const results = useMemo(() => runAllTrials(state), [state]);
+  const resultsJob = useJob('visual.trials', state);
+  const results = resultsJob.value ?? [];
   // The same start with the other shape, so catch and avoid can be watched side by side
   const pair = useMemo(() => {
     const other = agent.simulate({ ...state, trial: { ...state.trial, shape: state.trial.shape === 'circle' ? 'line' : 'circle' } });
@@ -138,9 +141,11 @@ export function VisualPage() {
         </div>
 
         <div className="card">
-          <div className="card-head"><h2>All trials</h2><span className="muted small">{results.length} trials · {state.trials.count} per shape over ±{state.trials.range}</span></div>
+          <div className="card-head"><h2>All trials</h2><span className="muted small">{results.length} trials · {state.trials.count} per shape over ±{state.trials.range}</span><div className="spacer" /><Busy pending={resultsJob.pending} ms={resultsJob.ms} /></div>
+          <Stale pending={resultsJob.pending}>
           <TrialsOverview results={results} selected={state.trial} maxDistance={state.maxDistance}
             onSelect={(shape, offset) => { ex.setState({ ...state, trial: { ...state.trial, shape, offset, vy: state.trials.vy, size: state.trials.size } }); ex.setIdx(0); }} />
+          </Stale>
           <p className="small muted" style={{ marginTop: 6 }}>
             Beer/Setzler's <code>categorize.ns</code> reliably avoids lines but only partly approaches circles that start off-center;
             the evolved presets show the full behavior from Beer (2003): foveate, scan, then catch circles and avoid lines.

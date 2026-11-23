@@ -198,3 +198,10 @@ table.data tr.sel { background: var(--surface-2); }
 .error { color: var(--critical); }
 .split-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 @media (max-width: 700px) { .split-2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* Background computation indicator */
+.busy { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); font-weight: 400; }
+.busy-dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--text-muted); border-top-color: transparent; animation: busy-spin 0.8s linear infinite; }
+@keyframes busy-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .busy-dot { animation: none; border-top-color: var(--text-muted); opacity: 0.6; } }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

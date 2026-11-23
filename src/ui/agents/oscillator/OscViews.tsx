@@ -1,14 +1,13 @@
 // Oscillator-specific views: cycle statistics, frequency spectrum and a 2-parameter map.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { cycleStats, phaseLag, spectrum } from '../../../sim/analysis/oscillation';
 import {
-  getParam, mapCell, paramKeys, paramLabel, transientIndex, type MapCell, type MapMetric, type OscState, type ParamKey,
+  getParam, paramKeys, paramLabel, transientIndex, type MapCell, type MapMetric, type OscState, type ParamKey,
 } from '../../../sim/agents/oscillator';
 import type { Recording } from '../../../sim/core/recording';
-import { bifurcationCurves } from '../../../sim/analysis/bifurcation2';
-import { effectiveCircuit, setParam as setP } from '../../../sim/agents/oscillator';
 import { useCanvas } from '../../hooks/useCanvas';
+import { useJob } from '../../hooks/useJob';
 import { drawXAxis, drawYTicks, fmt, linear, niceTicks } from '../../plot';
 import { neuronColor, useTheme, type Theme } from '../../theme';
 
@@ -112,47 +111,36 @@ export function ParamMap({ state, onPick }: { state: OscState; onPick: (xKey: Pa
   const [yr, setYr] = useState<[number, number]>(() => { const k = n > 1 ? 'bias:1' : 'w:0:0'; return defaultRange(k, getParam(state.circuit, k)); });
   const [metric, setMetric] = useState<MapMetric>('amplitude');
   const [res, setRes] = useState(48);
-  const [cells, setCells] = useState<(MapCell | null)[]>([]);
   const [hover, setHover] = useState<{ a: number; b: number; px: number; py: number } | null>(null);
   const [showCurves, setShowCurves] = useState(true);
   const validX = keys.includes(xKey) ? xKey : keys[0], validY = keys.includes(yKey) ? yKey : keys[Math.min(1, keys.length - 1)];
 
-  // Everything except the two swept parameters determines the map
+  // Everything except the two swept parameters determines the map. It is computed in a background
+  // worker, a few rows at a time, so it fills in progressively without blocking the page.
   const basis = JSON.stringify({ ...state, x: validX, y: validY, xr, yr, metric, res });
-  useEffect(() => {
-    let cancelled = false;
-    const out: (MapCell | null)[] = new Array(res * res).fill(null);
-    setCells(out.slice());
-    let row = 0;
-    const work = () => {
-      if (cancelled) return;
-      const t0 = performance.now();
-      while (row < res && performance.now() - t0 < 30) {
-        const yv = yr[0] + ((yr[1] - yr[0]) * (row + 0.5)) / res;
-        for (let a = 0; a < res; a++) {
-          const xv = xr[0] + ((xr[1] - xr[0]) * (a + 0.5)) / res;
-          out[row * res + a] = mapCell(state, validX, xv, validY, yv, metric);
-        }
-        row++;
-      }
-      setCells(out.slice());
-      if (row < res) setTimeout(work, 0);
-    };
-    setTimeout(work, 0);
-    return () => { cancelled = true; };
+  const SLICE = 6;
+  const [prog, setProg] = useState<{ basis: string; row: number; cells: (MapCell | null)[] }>({ basis: '', row: 0, cells: [] });
+  const cur = prog.basis === basis ? prog : { basis, row: 0, cells: new Array<MapCell | null>(res * res).fill(null) };
+  const cells = cur.cells;
+  const sliceArgs = useMemo(() => (cur.row < res ? { state, x: validX, y: validY, xr, yr, metric, res, row0: cur.row, row1: Math.min(res, cur.row + SLICE) } : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basis]);
+    [basis, cur.row]);
+  useJob('oscillator.mapRows', sliceArgs, (rows, a) => setProg((p) => {
+    const b = JSON.stringify({ ...a.state, x: a.x, y: a.y, xr: a.xr, yr: a.yr, metric: a.metric, res: a.res });
+    const base = p.basis === b ? p : { basis: b, row: 0, cells: new Array<MapCell | null>(a.res * a.res).fill(null) };
+    if (base.row !== a.row0) return base;
+    const next = base.cells.slice();
+    rows.forEach((c, i) => { next[a.row0 * a.res + i] = c; });
+    return { basis: b, row: a.row1, cells: next };
+  }));
 
   const done = cells.filter(Boolean).length;
-  // Exact fold and Hopf curves for the two swept parameters (Dynamica's BifurcationBranches)
-  const curves = useMemo(() => {
-    if (!showCurves) return null;
-    const base = effectiveCircuit(state), zeros = new Array(base.size).fill(0);
-    try {
-      return bifurcationCurves({ circuit: (a, b) => setP(setP(base, validX, a), validY, b), inputs: () => zeros }, { l1: xr, l2: yr });
-    } catch { return null; }
+  // Exact fold and Hopf curves for the two swept parameters (Dynamica's BifurcationBranches), also in the background
+  const curvesArgs = useMemo(() => (showCurves ? { state, x: validX, y: validY, xr, yr } : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCurves, basis]);
+    [showCurves, basis]);
+  const curvesJob = useJob('oscillator.curves', curvesArgs);
+  const curves = showCurves && !curvesJob.pending ? curvesJob.value ?? null : null;
   const periodMax = useMemo(() => Math.max(1, ...cells.map((c) => (c && Number.isFinite(c.period) ? c.period : 0))), [cells]);
   const stableMax = useMemo(() => Math.max(1, ...cells.map((c) => (c && Number.isFinite(c.stable) ? c.stable : 0))), [cells]);
   const colorOf = (c: MapCell): string => {

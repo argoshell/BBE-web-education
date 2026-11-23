@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import {
-  CIRCUITSIZE, guidedAgent, guidedColorSlot, guidedNeuronName, meanScore, NUMRAYS, runAllGuidedTrials, taskInfo, type GuidedState, type GuidedTask, loadedPreset, presetStateFor } from '../../../sim/agents/visual/guided';
+  CIRCUITSIZE, guidedAgent, guidedColorSlot, guidedNeuronName, meanScore, NUMRAYS, taskInfo, type GuidedState, type GuidedTask, loadedPreset, presetStateFor } from '../../../sim/agents/visual/guided';
 import { BodySize } from '../../../sim/agents/visual/body';
 import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait';
 import { TraceStack, type TraceRow } from '../../components/TraceStack';
@@ -14,6 +14,8 @@ import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy } from '../../components/Busy';
 import { GuidedControls, GuidedEvoConfigPanel } from './GuidedControls';
 import { GuidedInfoCard } from './GuidedInfo';
 import { GuidedArena, GuidedScoreMap, GuidedTrialsOverview } from './GuidedViews';
@@ -30,9 +32,6 @@ function fromUrl(s: unknown): GuidedState | null {
 
 const defaultAxes = (): [string, string] => ['o8', 'o9'];
 
-function bothScores(s: GuidedState) {
-  return { size: meanScore(runAllGuidedTrials({ ...s, task: 'size' }, 1000)), aperture: meanScore(runAllGuidedTrials({ ...s, task: 'aperture' }, 1000)) };
-}
 
 export function GuidedPage() {
   const theme = useTheme();
@@ -41,11 +40,13 @@ export function GuidedPage() {
   const [showInputs, setShowInputs] = useState(false);
   const [showStates, setShowStates] = useState(false);
   const [compareInPhase, setCompareInPhase] = useState(true);
-  const results = useMemo(() => runAllGuidedTrials(state), [state]);
+  // All trials of both tasks run in the background
+  const trialsJob = useJob('guided.trials', state);
+  const results = useMemo(() => trialsJob.value?.results ?? [], [trialsJob.value]);
   const other = state.task === 'size' ? 'aperture' : 'size';
-  const otherFitness = useMemo(() => meanScore(runAllGuidedTrials({ ...state, task: other }, 1000)), [state, other]);
+  const otherFitness = trialsJob.value?.otherFitness ?? NaN;
   const info = taskInfo[state.task];
-  const taskFitness = useMemo(() => meanScore(results), [results]);
+  const taskFitness = useMemo(() => (results.length ? meanScore(results) : NaN), [results]);
   /** Switching task with the other task's specialist preset loaded swaps in this task's specialist. */
   const switchTask = (t: GuidedTask) => {
     if (t === state.task) return;
@@ -68,7 +69,8 @@ export function GuidedPage() {
 
   const pinColors = [theme.series[0], theme.series[1], theme.series[2]];
   const pinRecs = useMemo(() => ex.pins.map((p) => agent.simulate({ ...p.params, task: state.task, trial: state.trial })), [ex.pins, state.task, state.trial]);
-  const pinScores = useMemo(() => ex.pins.map((p) => bothScores({ ...p.params, grid: state.grid, maxDistance: state.maxDistance })), [ex.pins, state.grid, state.maxDistance]);
+  const pinScoresJob = useJob('guided.pinScores', useMemo(() => (ex.pins.length ? ex.pins.map((p) => ({ ...p.params, grid: state.grid, maxDistance: state.maxDistance })) : null), [ex.pins, state.grid, state.maxDistance]));
+  const pinScores = pinScoresJob.pending ? [] : pinScoresJob.value ?? [];
   const overlays: PhaseOverlay[] = ex.pins.map((p, k) => ({ rec: pinRecs[k], color: pinColors[k], label: p.label }));
   const select = (pos: number, size: number) => { ex.setState({ ...state, trial: { pos, size } }); ex.setIdx(0); };
   const approach = (state.trial.size < BodySize) === (state.task === 'size');
@@ -111,7 +113,7 @@ export function GuidedPage() {
               : 'Two line segments fall together, leaving a gap 20–40 wide; the agent must pass through gaps wider than itself and avoid narrower ones.'}
           </p>
           <LoadedBanner loaded={ex.loaded} onPin={ex.pin} onRevert={ex.selectIndividual} />
-          {taskFitness < 0.75 && (
+          {!trialsJob.pending && taskFitness < 0.75 && (
             <div className="note inline" style={{ marginBottom: 8 }}>
               <span>
                 <b>⚠ This circuit scores only {fmt(taskFitness, 2)} on {info.name.toLowerCase()}</b> ({taskInfo[other].name.toLowerCase()}: {fmt(otherFitness, 2)}).
@@ -177,8 +179,8 @@ export function GuidedPage() {
         </div>
 
         <div className="card">
-          <div className="card-head"><h2>All trials</h2><span className="muted small">{results.length} distinct trials (each counted {state.grid.reps}× in the fitness, as in main.cpp)</span></div>
-          <div className="row-2" style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)' }}>
+          <div className="card-head"><h2>All trials</h2><span className="muted small">{results.length} distinct trials (each counted {state.grid.reps}× in the fitness, as in main.cpp)</span><div className="spacer" /><Busy pending={trialsJob.pending} ms={trialsJob.ms} /></div>
+          <div className="row-2" style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', opacity: trialsJob.pending ? 0.55 : 1, transition: 'opacity 0.2s' }}>
             <GuidedTrialsOverview results={results} task={state.task} selected={state.trial} maxDistance={state.maxDistance} onSelect={select} />
             <GuidedScoreMap results={results} task={state.task} selected={state.trial} onSelect={select} />
           </div>

@@ -1,25 +1,25 @@
 // Explorer for selective attention (Slocum, Downey & Beer 2000, §6; Goldenberg, Garcowski & Beer 2004).
 
-import { useDeferredValue, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
-  attentionAgent, attentionAssumptions, attentionEye, attentionPerformance, categorize, categoryIndex, categoryNames, randomAttentionTrials,
-  runAttentionTrials, validTrial, type AttentionState, type AttentionTrial,
+  attentionAgent, attentionAssumptions, attentionEye, categorize, categoryIndex, categoryNames, randomAttentionTrials,
+  validTrial, type AttentionState, type AttentionTrial,
 } from '../../../sim/agents/minimal/attention';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { IntField, NumberField, SelectField } from '../../components/controls';
 import type { PhaseOverlay } from '../../components/PhasePortrait';
 import { Transport } from '../../components/Transport';
 import { EvolutionPanel } from '../../evolution/EvolutionPanel';
-import { fmt } from '../../plot';
+import { fmt, fmtPct } from '../../plot';
 import { useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy } from '../../components/Busy';
 import { MinimalInfoCard } from './MinimalInfo';
-import { attentionEnsemble } from '../../../sim/agents/minimal/ensembles';
 import { AssumptionList, CircuitCards } from './MinimalCommon';
 import { FallArena, PositionsOverTime } from './MinimalViews';
 
-const buildInfo = (s: AttentionState) => attentionEnsemble(s, 300, s.dt);
 const agent = attentionAgent;
 
 function fromUrl(s: unknown): AttentionState | null {
@@ -35,12 +35,12 @@ export function AttentionPage() {
   const theme = useTheme();
   const ex = useExplorer(agent, { fromUrl, defaultAxes });
   const { state, rec, cur, window } = ex;
-  const deferred = useDeferredValue(state);
-  const evalTrials = useMemo(() => randomAttentionTrials(ex.evoConfig.trials, ex.evoConfig.seed), [ex.evoConfig.trials, ex.evoConfig.seed]);
-  const testTrials = useMemo(() => randomAttentionTrials(300, 2004), []);
-  const evalPerf = useMemo(() => attentionPerformance(deferred, evalTrials, deferred.dt), [deferred, evalTrials]);
-  const tests = useMemo(() => runAttentionTrials(deferred, testTrials), [deferred, testTrials]);
-  const testPerf = tests.reduce((a, r) => a + r.score, 0) / tests.length;
+  // Performance and the 300 test trials run in the background
+  const summaryArgs = useMemo(() => ({ state, trials: ex.evoConfig.trials, seed: ex.evoConfig.seed }), [state, ex.evoConfig.trials, ex.evoConfig.seed]);
+  const summary = useJob('attention.summary', summaryArgs);
+  const evalPerf = summary.value?.evalPerf ?? NaN;
+  const tests = useMemo(() => summary.value?.tests ?? [], [summary.value]);
+  const testPerf = tests.length ? tests.reduce((a, r) => a + r.score, 0) / tests.length : NaN;
   const byCategory = categoryNames.map((_, k) => {
     const rs = tests.filter((r) => categoryIndex(r.category) === k);
     return { n: rs.length, perf: rs.length ? rs.reduce((a, r) => a + r.score, 0) / rs.length : NaN };
@@ -103,9 +103,9 @@ export function AttentionPage() {
           <LoadedBanner loaded={ex.loaded} onPin={ex.pin} onRevert={ex.selectIndividual} />
           <div className="stats" style={{ marginBottom: 8 }}>
             <div className="stat"><span className="v num">{fmt(Math.abs(rec.summary.dx1), 1)} / {fmt(Math.abs(rec.summary.dx2), 1)}</span><span className="l">miss: fast / slow object</span></div>
-            <div className="stat"><span className="v num">{fmt(rec.summary.score * 100, 1)}%</span><span className="l">this trial</span></div>
-            <div className="stat"><span className="v num">{fmt(evalPerf * 100, 1)}%</span><span className="l">{evalTrials.length} trials used by in-browser evolution</span></div>
-            <div className="stat"><span className="v num">{fmt(testPerf * 100, 1)}%</span><span className="l">300 random trials (paper&apos;s best: 94.2%)</span></div>
+            <div className="stat"><span className="v num">{fmtPct(rec.summary.score, 1)}</span><span className="l">this trial</span></div>
+            <div className="stat"><span className="v num">{fmtPct(evalPerf, 1)}</span><span className="l">{ex.evoConfig.trials} trials used by in-browser evolution <Busy pending={summary.pending} ms={summary.ms} label="" /></span></div>
+            <div className="stat"><span className="v num">{fmtPct(testPerf, 1)}</span><span className="l">300 random trials (paper&apos;s best: 94.2%)</span></div>
           </div>
           <div className="split-2">
             <FallArena rec={rec} idx={cur} eye={attentionEye} objects={2} colors={colors} />
@@ -120,16 +120,16 @@ export function AttentionPage() {
           axes={ex.axes} onAxes={(x, y) => ex.setAxes([x, y])} overlays={overlays} bodyRows={bodyRows} />
 
         <div className="card">
-          <div className="card-head"><h2>Kinds of trial</h2><span className="muted small">300 random trials, grouped as in Slocum et al.</span></div>
-          <div className="row-2">
+          <div className="card-head"><h2>Kinds of trial</h2><span className="muted small">300 random trials, grouped as in Slocum et al.</span><div className="spacer" /><Busy pending={summary.pending} ms={summary.ms} /></div>
+          <div className="row-2" style={{ opacity: summary.pending ? 0.55 : 1, transition: 'opacity 0.2s' }}>
             <table className="small" style={{ borderCollapse: 'collapse', width: '100%' }}>
               <thead><tr><th style={{ textAlign: 'left' }}>trial type</th><th className="num">share</th><th className="num">this agent</th><th className="num">paper&apos;s best</th></tr></thead>
               <tbody>
                 {categoryNames.map((nm, k) => (
                   <tr key={nm}>
                     <td>{['neither passing nor permanence', 'passing objects only', 'object permanence only', 'passing and permanence'][k]}</td>
-                    <td className="num">{fmt((byCategory[k].n / tests.length) * 100, 0)}%</td>
-                    <td className="num"><b>{fmt(byCategory[k].perf * 100, 1)}%</b></td>
+                    <td className="num">{fmtPct((byCategory[k].n / tests.length), 0)}</td>
+                    <td className="num"><b>{fmtPct(byCategory[k].perf, 1)}</b></td>
                     <td className="num secondary">{paperBreakdown[k]}</td>
                   </tr>
                 ))}
@@ -150,7 +150,7 @@ export function AttentionPage() {
             Object permanence: when the first object is caught, the second is out of view, so the agent must remember where it went.</p>
         </div>
 
-        <MinimalInfoCard state={state} build={buildInfo} defaultPair={['relX2', `o${state.circuit.size - 1}`]}
+        <MinimalInfoCard job="attention.ensemble" state={state} defaultPair={['relX2', `o${state.circuit.size - 1}`]}
           summary="what each neuron knows about the two objects, before and after the first catch, across 300 random trials"
           description={<>Runs 300 random trials and measures the mutual information between properties of the two objects and each neuron&apos;s output,
             following Williams &amp; Beer (2010) and Beer &amp; Williams (2015). Time is in two phases: 0–1 until the fast object lands, 1–2 until the slow
@@ -161,7 +161,7 @@ export function AttentionPage() {
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}
-          columns={[{ label: 'this trial', value: (p) => `${fmt((pinRecs[ex.pins.indexOf(p)]?.summary.score ?? NaN) * 100, 1)}%` }]} />
+          columns={[{ label: 'this trial', value: (p) => `${fmtPct((pinRecs[ex.pins.indexOf(p)]?.summary.score ?? NaN), 1)}` }]} />
 
         <EvolutionPanel agent={agent} evoConfig={ex.evoConfig} selectedId={ex.selectedId} onSelect={ex.selectIndividual} onPin={ex.pin}
           agentConfig={<>

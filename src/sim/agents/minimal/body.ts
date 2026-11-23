@@ -107,6 +107,12 @@ export class ProximityAgent {
     else if (this.cx > ENV_WIDTH / 2) this.cx = ENV_WIDTH / 2;
   }
 
+  /** Ray lengths each object alone would cause now, from a single reset of the rays (for display). */
+  objectRayLengths(objects: VisualObject[]): number[][] {
+    this.resetRays();
+    return objects.map((o) => this.rays.map((r) => { const c = { ...r }; o.rayIntersection(c); return c.length; }));
+  }
+
   /** Lengths the rays would have now (for display). */
   rayLengths(objects: VisualObject[]): number[] {
     this.resetRays();

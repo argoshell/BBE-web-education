@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { cycleStats } from '../../../sim/analysis/oscillation';
-import { effectiveCircuit, getParam, oscillatorAgent, paramKeys, paramLabel, refinedFitness, setParam, transientIndex, type OscState } from '../../../sim/agents/oscillator';
+import { effectiveCircuit, getParam, oscillatorAgent, paramKeys, paramLabel, setParam, transientIndex, type OscState } from '../../../sim/agents/oscillator';
 import { DynamicsCard, type FamilyOption } from '../../components/DynamicsPanel';
 import { rangeAround } from '../../../sim/core/circuitParams';
 import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait';
@@ -14,6 +14,8 @@ import { fmt } from '../../plot';
 import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy } from '../../components/Busy';
 import { OscControls, OscEvoConfigPanel } from './OscControls';
 import { CycleTable, ParamMap, SpectrumChart } from './OscViews';
 
@@ -43,17 +45,20 @@ export function OscillatorPage() {
   }, [n, theme, showStates]);
 
   const stats1 = useMemo(() => cycleStats(rec.t, rec.channels.o1, transientIndex(state.run)), [rec, state.run]);
-  const refined = useMemo(() => refinedFitness(state), [state]);
+  // The RK4 check integrates 5× finer: run it in the background
+  const refinedJob = useJob('oscillator.refined', state);
+  const refined = refinedJob.value ?? NaN;
   const circ = useMemo(() => effectiveCircuit(state), [state]);
   const zeros = useMemo(() => new Array(n).fill(0), [n]);
   const yNow = useMemo(() => Array.from({ length: n }, (_, i) => rec.channels[`y${i + 1}`][cur]), [rec, n, cur]);
   const families: FamilyOption[] = useMemo(() => paramKeys(n).map((key) => ({
     key, label: paramLabel(key), value: getParam(circ, key), range: rangeAround(key, getParam(circ, key)),
     family: { circuit: (l: number) => setParam(circ, key, l), inputs: () => zeros },
+    spec: { circuit: circ, key, inputs: zeros },
     apply: (v: number) => ex.setState({ ...state, centerCrossing: key.startsWith('bias') ? false : state.centerCrossing, circuit: setParam(key.startsWith('bias') ? circ : state.circuit, key, v) }),
   })), [circ, n, zeros, state, ex]);
   const fit = rec.summary.fitness;
-  const artifact = Math.abs(refined - fit) > 0.1 * Math.max(Math.abs(fit), 1e-3);
+  const artifact = !refinedJob.pending && Math.abs(refined - fit) > 0.1 * Math.max(Math.abs(fit), 1e-3);
   const pinColors = [theme.series[0], theme.series[1], theme.series[2]];
   const overlays: PhaseOverlay[] = ex.pins.map((p, k) => ({ rec: p.rec, color: pinColors[k], label: p.label }));
 
@@ -77,7 +82,7 @@ export function OscillatorPage() {
             <div className="stat"><span className="v num">{fmt(rec.summary.fitness, 4)}</span><span className="l">fitness ({state.fitness.kind === 'change' ? 'total output change' : `target period ${state.fitness.targetPeriod}`})</span></div>
             <div className="stat"><span className="v num">{Number.isFinite(stats1.period) ? fmt(stats1.period, 3) : '—'}</span><span className="l">period (n1)</span></div>
             <div className="stat"><span className="v num">{fmt(stats1.amplitude, 3)}</span><span className="l">amplitude (n1)</span></div>
-            <div className="stat"><span className="v num">{fmt(refined, 4)}</span><span className="l">fitness check (RK4, step ÷ 5)</span></div>
+            <div className="stat"><span className="v num">{fmt(refined, 4)}</span><span className="l">fitness check (RK4, step ÷ 5) <Busy pending={refinedJob.pending} label="" /></span></div>
           </div>
           {artifact && (
             <p className="note" style={{ marginBottom: 8 }}>

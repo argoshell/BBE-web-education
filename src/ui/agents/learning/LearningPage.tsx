@@ -1,11 +1,10 @@
 // Explorer for associative learning without synaptic plasticity (Izquierdo, Harvey & Beer 2008).
 
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  assumptions, forgettingCurve, learningAgent, learningFitness, learningMap, learningNeuronName, stages, strobes, TEMPS,
+  assumptions, learningAgent, learningNeuronName, stages, TEMPS,
   type LearningRecording, type LearningState, type LearnMode, type StrobeKind,
 } from '../../../sim/agents/learning';
-import { RandomState } from '../../../sim/core/random';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { CheckField, IntField, NumberField, SelectField } from '../../components/controls';
 import { EquilibriumSweep } from '../../components/EquilibriumSweep';
@@ -17,10 +16,12 @@ import { TraceStack, type TraceRow } from '../../components/TraceStack';
 import { Transport } from '../../components/Transport';
 import { WeightMatrix } from '../../components/WeightMatrix';
 import { EvolutionPanel } from '../../evolution/EvolutionPanel';
-import { fmt } from '../../plot';
+import { fmt, fmtPct } from '../../plot';
 import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy, Stale } from '../../components/Busy';
 
 const agent = learningAgent;
 
@@ -40,15 +41,16 @@ export function LearningPage() {
   const rec = ex.rec as LearningRecording;
   const n = state.circuit.size;
   const tests = rec.tests ?? [];
-  const deferred = useDeferredValue(state);
   const [showNeurons, setShowNeurons] = useState(true);
   const [strobeAxes, setStrobeAxes] = useState<[number, number]>([0, 1]);
   const [strobeColor, setStrobeColor] = useState<'phase' | 'pairing'>('phase');
 
-  const stage4 = useMemo(() => learningFitness(deferred, deferred.mode, stages[3], 100, deferred.dt, new RandomState(7)), [deferred]);
-  const map = useMemo(() => learningMap(deferred, 21, deferred.dt), [deferred]);
-  const forgetting = useMemo(() => forgettingCurve(deferred, deferred.mode, 12, 120, deferred.dt), [deferred]);
-  const strobeData = useMemo(() => strobes(deferred, deferred.mode, 60, deferred.dt), [deferred]);
+  // The lifetime statistics, learning map, forgetting curve and strobes run in the background
+  const summary = useJob('learning.summary', state);
+  const stage4 = summary.value?.stage4 ?? NaN;
+  const map = useMemo(() => summary.value?.map ?? [new Float64Array(21)], [summary.value]);
+  const forgetting = useMemo(() => summary.value?.forgetting ?? new Float64Array(0), [summary.value]);
+  const strobeData = useMemo(() => summary.value?.strobes ?? [], [summary.value]);
   const sweep = useMemo(() => agent.inputSweep?.(state) ?? null, [state]);
 
   const stimRows: TraceRow[] = useMemo(() => [
@@ -159,9 +161,9 @@ export function LearningPage() {
           </details>
           <LoadedBanner loaded={ex.loaded} onPin={ex.pin} onRevert={ex.selectIndividual} />
           <div className="stats" style={{ marginBottom: 8 }}>
-            <div className="stat"><span className="v num">{fmt(sc.accuracy * 100, 0)}%</span><span className="l">tests answered correctly ({rec.summary.tests})</span></div>
+            <div className="stat"><span className="v num">{fmtPct(sc.accuracy, 0)}</span><span className="l">tests answered correctly ({rec.summary.tests})</span></div>
             <div className="stat"><span className="v num">{fmt(sc.fitness, 3)}</span><span className="l">fitness of this lifetime</span></div>
-            <div className="stat"><span className="v num">{fmt(stage4, 3)}</span><span className="l">fitness on 100 random lifetimes (stage 4: 3 environments, 0–5 tests)</span></div>
+            <div className="stat"><span className="v num">{fmt(stage4, 3)}</span><span className="l">fitness on 100 random lifetimes (stage 4: 3 environments, 0–5 tests) <Busy pending={summary.pending} ms={summary.ms} label="" /></span></div>
           </div>
           <TraceStack rec={rec} rows={showNeurons ? [...stimRows, ...neuronRows] : stimRows} idx={cur} onSeek={ex.setIdx} window={window} stanceKey="evalWin" rowHeight={30} />
           <div className="inline small" style={{ flexWrap: 'wrap', gap: 4, margin: '6px 0' }}>
@@ -181,12 +183,12 @@ export function LearningPage() {
 
         <div className="row-2">
           <div className="card">
-            <div className="card-head"><h2>Learning map</h2><span className="muted small">mouth on the first test after a pairing</span></div>
-            <Heatmap values={map} xRange={TEMPS} yRange={TEMPS} xLabel="test temperature" yLabel="paired temperature" valueLabel="mean mouth output" />
+            <div className="card-head"><h2>Learning map</h2><span className="muted small">mouth on the first test after a pairing</span><div className="spacer" /><Busy pending={summary.pending} ms={summary.ms} /></div>
+            <Stale pending={summary.pending}><Heatmap values={map} xRange={TEMPS} yRange={TEMPS} xLabel="test temperature" yLabel="paired temperature" valueLabel="mean mouth output" /></Stale>
             <p className="small muted">Paper Figure 10a. A perfect learner is open (dark) only on the diagonal: it opens for the temperature it was paired with and stays closed for every other.</p>
           </div>
           <div className="card">
-            <div className="card-head"><h2>Forgetting curve</h2><span className="muted small">correct answers on the k-th test after one pairing</span></div>
+            <div className="card-head"><h2>Forgetting curve</h2><span className="muted small">correct answers on the k-th test after one pairing</span><div className="spacer" /><Busy pending={summary.pending} /></div>
             <LineChart x={Float64Array.from(forgetting, (_, k) => k + 1)} series={[{ label: 'fraction correct', values: forgetting, color: theme.series[0] }]}
               yRange={[0, 1]} xLabel="test number" height={240} />
             <p className="small muted">Paper Figure 10d. Each test is followed by a reward or punishment. The memory sits in the circuit&apos;s slow state, so it can drift over many tests.</p>
@@ -202,6 +204,7 @@ export function LearningPage() {
           <div className="card">
             <div className="card-head">
               <h2>Strobed states</h2>
+              <Busy pending={summary.pending} />
               <div className="spacer" />
               <SelectField label="x" value={String(strobeAxes[0])} options={neuronOptions} onChange={(v) => setStrobeAxes([Number(v), strobeAxes[1]])} />
               <SelectField label="y" value={String(strobeAxes[1])} options={neuronOptions} onChange={(v) => setStrobeAxes([strobeAxes[0], Number(v)])} />
@@ -228,7 +231,7 @@ export function LearningPage() {
 
         <CompareCard agent={agent} ctl={ex.ctl} pins={ex.pins} colors={pinColors} onSelect={ex.selectIndividual}
           onUnpin={ex.unpin} onClear={() => ex.setPins([])}
-          columns={[{ label: 'correct (this lifetime)', value: (p) => `${fmt((pinRecs[ex.pins.indexOf(p)]?.summary.accuracy ?? NaN) * 100, 0)}%` }]} />
+          columns={[{ label: 'correct (this lifetime)', value: (p) => `${fmtPct((pinRecs[ex.pins.indexOf(p)]?.summary.accuracy ?? NaN), 0)}` }]} />
 
         <EvolutionPanel agent={agent} evoConfig={ex.evoConfig} selectedId={ex.selectedId} onSelect={ex.selectIndividual} onPin={ex.pin}
           agentConfig={<>

@@ -1,7 +1,7 @@
 // Explorer for relational categorization (Williams, Beer & Gasser 2008; Beer & Williams 2015).
 
-import { useDeferredValue, useMemo, useState } from 'react';
-import { relcatAgent, relcatEnsemble, relcatNeuronName, runAllRelcatTrials, type RelcatState } from '../../../sim/agents/relcat';
+import { useMemo, useState } from 'react';
+import { relcatAgent, relcatNeuronName, type RelcatState } from '../../../sim/agents/relcat';
 import { trialSizes } from '../../../sim/agents/relcat/body';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { CheckField, NumberField, SelectField } from '../../components/controls';
@@ -15,6 +15,8 @@ import { fmt } from '../../plot';
 import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy, Stale } from '../../components/Busy';
 import { RelcatArena, RelcatOverview, RelcatScoreMatrix } from './RelcatViews';
 
 const agent = relcatAgent;
@@ -33,10 +35,12 @@ export function RelcatPage() {
   const { state, rec, cur, window } = ex;
   const n = state.net.size;
   const [showRays, setShowRays] = useState(false);
-  const results = useMemo(() => runAllRelcatTrials(state), [state]);
+  const resultsJob = useJob('relcat.trials', state);
+  const results = resultsJob.value ?? [];
   const [infoOpen, setInfoOpen] = useState(false);
-  const deferred = useDeferredValue(state);
-  const ensemble = useMemo(() => (infoOpen ? relcatEnsemble(deferred, trialSizes(deferred.params)) : null), [infoOpen, deferred]);
+  const ensembleArgs = useMemo(() => (infoOpen ? { state, sizes: trialSizes(state.params) } : null), [infoOpen, state]);
+  const ensembleJob = useJob('relcat.ensemble', ensembleArgs);
+  const ensemble = infoOpen ? ensembleJob.value ?? null : null;
 
   const rows: TraceRow[] = useMemo(() => {
     const out: TraceRow[] = [];
@@ -130,8 +134,8 @@ export function RelcatPage() {
         </div>
 
         <div className="card">
-          <div className="card-head"><h2>All trials</h2><span className="muted small">{results.length} trials (relcat&apos;s size grid, 20–65)</span></div>
-          <div className="row-2">
+          <div className="card-head"><h2>All trials</h2><span className="muted small">{results.length} trials (relcat&apos;s size grid, 20–65)</span><div className="spacer" /><Busy pending={resultsJob.pending} ms={resultsJob.ms} /></div>
+          <div className="row-2" style={{ opacity: resultsJob.pending ? 0.55 : 1, transition: 'opacity 0.2s' }}>
             <RelcatOverview results={results} selected={state.trial} onSelect={select} />
             <div>
               <h3 style={{ marginBottom: 6 }}>Score per size pair</h3>
@@ -145,6 +149,7 @@ export function RelcatPage() {
             <h2>Information</h2>
             <span className="muted small">how information about the first size and the relation flows through the circuit (Beer &amp; Williams 2015)</span>
             <div className="spacer" />
+            {infoOpen && <Busy pending={ensembleJob.pending} ms={ensembleJob.ms} label={ensemble ? 'updating…' : 'computing…'} />}
             <button className="btn small" onClick={() => setInfoOpen(!infoOpen)}>{infoOpen ? 'Hide' : 'Analyze'}</button>
           </div>
           {!infoOpen || !ensemble ? (
@@ -154,8 +159,10 @@ export function RelcatPage() {
               appear in phase 1 and be held into phase 2, where information about the relation (and so the decision) appears.
             </p>
           ) : (
+            <Stale pending={ensembleJob.pending}>
             <InfoPanel ensemble={ensemble} colorOf={(key) => (key === 'relX' ? undefined : neuronColor(theme, Number(key.slice(1))))}
               defaultPair={[`o1`, `o${n - 1}`]} />
+            </Stale>
           )}
         </div>
 

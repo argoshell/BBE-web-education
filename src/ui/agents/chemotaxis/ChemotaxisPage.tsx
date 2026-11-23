@@ -1,7 +1,7 @@
 // Explorer for the C. elegans klinotaxis model (Izquierdo & Lockery 2010; Izquierdo & Beer 2013).
 
-import { useDeferredValue, useMemo, useState } from 'react';
-import { chemotaxisAgent, neuronName, neuronSlot, refinedFitness, runAllTrials, trialSetFitness, wormRoles, type ChemoState } from '../../../sim/agents/chemotaxis';
+import { useMemo, useState } from 'react';
+import { chemotaxisAgent, neuronName, neuronSlot, wormRoles, type ChemoState } from '../../../sim/agents/chemotaxis';
 import { PhasePortrait, type PhaseOverlay } from '../../components/PhasePortrait';
 import { TraceStack, type TraceRow } from '../../components/TraceStack';
 import { Transport } from '../../components/Transport';
@@ -11,6 +11,8 @@ import { neuronColor, useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy, Stale } from '../../components/Busy';
 import { ChemoEvoConfigPanel, ChemotaxisControls } from './ChemotaxisControls';
 import { ChemoArena, TrialsOverview, type ArenaZoom } from './ChemotaxisViews';
 
@@ -35,12 +37,14 @@ export function ChemotaxisPage() {
   const [showStates, setShowStates] = useState(false);
   const [zoom, setZoom] = useState<ArenaZoom>('dish');
   const [compareInPhase, setCompareInPhase] = useState(true);
-  const [refined, setRefined] = useState<{ key: ChemoState; value: number } | null>(null);
   const n = state.worm.circuit.size;
   // The full evaluation is 8 long runs: compute it from a deferred copy so editing stays responsive
-  const deferred = useDeferredValue(state);
-  const results = useMemo(() => runAllTrials(deferred), [deferred]);
-  const fitness = trialSetFitness(results);
+  // All runs, and the step-size check on request, run in the background
+  const trialsJob = useJob('chemotaxis.trials', state);
+  const results = trialsJob.value?.results ?? [];
+  const fitness = trialsJob.value?.fitness ?? NaN;
+  const [checkFor, setCheckFor] = useState<ChemoState | null>(null);
+  const refinedJob = useJob('chemotaxis.refined', checkFor === state ? checkFor : null);
 
   const rows: TraceRow[] = useMemo(() => {
     const roles = wormRoles(n);
@@ -61,10 +65,10 @@ export function ChemotaxisPage() {
 
   const pinColors = [theme.series[0], theme.series[1], theme.series[2]];
   const pinRecs = useMemo(() => ex.pins.map((p) => agent.simulate({ ...p.params, trial: state.trial, run: state.run })), [ex.pins, state.trial, state.run]);
-  const pinFits = useMemo(() => ex.pins.map((p) => trialSetFitness(runAllTrials({ ...p.params, trial: state.trial, trials: state.trials, run: state.run }))),
-    [ex.pins, state.trial, state.trials, state.run]);
+  const pinFitsJob = useJob('chemotaxis.pinFits', useMemo(() => (ex.pins.length ? ex.pins.map((p) => ({ ...p.params, trial: state.trial, trials: state.trials, run: state.run })) : null), [ex.pins, state.trial, state.trials, state.run]));
+  const pinFits = pinFitsJob.pending ? [] : pinFitsJob.value ?? [];
   const overlays: PhaseOverlay[] = ex.pins.map((p, k) => ({ rec: pinRecs[k], color: pinColors[k], label: p.label }));
-  const refinedNow = refined && refined.key === state ? refined.value : null;
+  const refinedNow = checkFor === state && !refinedJob.pending && refinedJob.value !== undefined ? refinedJob.value : null;
 
   return (
     <div className="page">
@@ -85,13 +89,13 @@ export function ChemotaxisPage() {
           <div className="stats" style={{ marginBottom: 8 }}>
             <div className="stat"><span className="v num">{fmt(rec.summary.score, 4)}</span><span className="l">score this run</span></div>
             <div className="stat"><span className="v num">{fmt(rec.summary.meanDist, 3)}</span><span className="l">mean distance while scored (cm)</span></div>
-            <div className="stat"><span className="v num">{fmt(fitness, 4)}</span><span className="l">fitness (all runs){deferred !== state ? ' …' : ''}</span></div>
+            <div className="stat"><span className="v num">{fmt(fitness, 4)}</span><span className="l">fitness (all runs) <Busy pending={trialsJob.pending} ms={trialsJob.ms} label="" /></span></div>
             <div className="stat">
               <span className="v num">{refinedNow !== null ? fmt(refinedNow, 4) : '—'}</span>
-              <span className="l">fitness at step ÷ 2 <button className="btn small" onClick={() => setRefined({ key: state, value: refinedFitness(state) })}>check</button></span>
+              <span className="l">fitness at step ÷ 2 <button className="btn small" onClick={() => setCheckFor(state)}>check</button> <Busy pending={checkFor === state && refinedJob.pending} label="running…" /></span>
             </div>
           </div>
-          {refinedNow !== null && Math.abs(refinedNow - fitness) > 0.05 && (
+          {refinedNow !== null && !trialsJob.pending && Math.abs(refinedNow - fitness) > 0.05 && (
             <p className="note" style={{ marginBottom: 8 }}>
               <b>⚠ Numerical artifact?</b> Fitness changes from {fmt(fitness, 3)} to {fmt(refinedNow, 3)} when the step size is halved.
             </p>
@@ -137,8 +141,10 @@ export function ChemotaxisPage() {
         <div className="card">
           <div className="card-head"><h2>All runs of the evaluation</h2>
             <span className="muted small">{state.trials.orientations} headings × {state.trials.repeats} runs, as in main.cpp (one worm; its state carries over)</span></div>
+          <Stale pending={trialsJob.pending}>
           <TrialsOverview results={results} selected={state.trial}
             onSelect={(r) => { ex.setState({ ...state, trial: { ...state.trial, orient: r.orient, gradSteep: r.gradSteep } }); ex.setIdx(0); }} />
+          </Stale>
           <p className="small muted" style={{ marginTop: 6 }}>
             The explorer's single run starts with a fresh nervous system, so its score can differ slightly from the
             corresponding first run here (main.cpp reuses one worm for every heading).

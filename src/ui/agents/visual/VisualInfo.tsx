@@ -1,17 +1,19 @@
 // Information-theoretic analysis card for the visual categorizer.
 
-import { useDeferredValue, useMemo, useState } from 'react';
-import { visualEnsemble } from '../../../sim/agents/visual/ensemble';
+import { useMemo, useState } from 'react';
 import type { VisualState } from '../../../sim/agents/visual';
 import { InfoPanel } from '../../info/InfoPanel';
 import { neuronColor, useTheme } from '../../theme';
+import { useJob } from '../../hooks/useJob';
+import { Busy, Stale } from '../../components/Busy';
 
 export function VisualInfoCard({ state, time, onSeekTime }: { state: VisualState; time: number; onSeekTime: (t: number) => void }) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   const [perShape, setPerShape] = useState(50);
-  const deferred = useDeferredValue(state);
-  const ensemble = useMemo(() => (open ? visualEnsemble(deferred, { perShape }) : null), [open, deferred, perShape]);
+  // Built in a background worker
+  const ens = useJob('visual.ensemble', useMemo(() => (open ? { state, perShape } : null), [open, state, perShape]));
+  const ensemble = open ? ens.value ?? null : null;
   const colorOf = useMemo(() => (key: string) => {
     if (key === 'relX') return undefined;
     const i = Number(key.slice(1)) - 1;
@@ -30,16 +32,19 @@ export function VisualInfoCard({ state, time, onSeekTime }: { state: VisualState
             <select value={perShape} onChange={(e) => setPerShape(Number(e.target.value))}>{[20, 50, 100, 200].map((v) => <option key={v} value={v}>{v}</option>)}</select>
           </label>
         )}
+        {open && <Busy pending={ens.pending} ms={ens.ms} label={ensemble ? 'updating…' : 'computing…'} />}
         <button className="btn small" onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Analyze'}</button>
       </div>
-      {!open ? (
+      {!open || !ensemble ? (
         <p className="small muted">
           Runs {2 * perShape} trials (circles and lines from evenly spaced starting offsets) and measures the mutual information between
           what was presented (shape, side, offset) and each neuron&apos;s output at every moment, following Williams &amp; Beer (2010) and
           Beer &amp; Williams (2015). Watch information about <i>side</i> appear early and information about <i>shape</i> build up as the agent scans.
         </p>
-      ) : ensemble && (
-        <InfoPanel ensemble={ensemble} colorOf={colorOf} time={time} onSeekTime={onSeekTime} defaultPair={['relX', 'o13']} />
+      ) : (
+        <Stale pending={ens.pending}>
+          <InfoPanel ensemble={ensemble} colorOf={colorOf} time={time} onSeekTime={onSeekTime} defaultPair={['relX', 'o13']} />
+        </Stale>
       )}
     </div>
   );

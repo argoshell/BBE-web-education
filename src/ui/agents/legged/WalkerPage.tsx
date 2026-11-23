@@ -70,6 +70,7 @@ export function WalkerPage() {
     for (const key of paramKeys(nn)) out.push({
       key, label: paramLabel(key), value: getParam(c, key), range: rangeAround(key, getParam(c, key)),
       family: { circuit: (l: number) => setParam(c, key, l), inputs: () => inputsNow },
+      spec: { circuit: c, key, inputs: Array.from(inputsNow) },
       apply: (v: number) => ex.setState({ ...state, circuit: setParam(c, key, v) }),
     });
     return out;

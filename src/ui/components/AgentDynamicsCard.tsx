@@ -37,6 +37,7 @@ export function AgentDynamicsCard({ view, rec, idx, onCircuit, note }: Props) {
     .map((key) => ({
       key, label: label(key), value: getParam(c, key), range: rangeAround(key, getParam(c, key)),
       family: { circuit: (l: number) => setParam(c, key, l), inputs: () => inputs },
+      spec: { circuit: c, key, inputs },
       apply: onCircuit ? (v: number) => onCircuit(setParam(c, key, v)) : undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     })), [c, n, inputs, onCircuit]);

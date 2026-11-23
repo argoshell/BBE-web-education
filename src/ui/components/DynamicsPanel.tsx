@@ -4,9 +4,12 @@
 
 import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import {
-  equilibriumBranches, equilibriumPoints, findLimitCycle, type Branch, type ParamFamily,
+  equilibriumBranches, findLimitCycle, type Branch, type ParamFamily,
 } from '../../sim/analysis/dynamics';
 import { cycleBranches, type CycleBranch } from '../../sim/analysis/cycles';
+import type { FamilySpec } from '../../sim/jobs';
+import { useJob } from '../hooks/useJob';
+import { Busy, Stale } from './Busy';
 import type { Complex } from '../../sim/analysis/linalg';
 import type { CTRNNParams } from '../../sim/core/ctrnn';
 import { useCanvas } from '../hooks/useCanvas';
@@ -21,6 +24,8 @@ export interface FamilyOption {
   /** Default range to scan. */
   range: [number, number];
   family: ParamFamily;
+  /** The same family as plain data (vary one parameter, inputs fixed), so it can be analyzed in a worker. */
+  spec?: FamilySpec;
   /** Apply a value (clicking the diagram). Omit for parameters the user cannot set directly. */
   apply?: (v: number) => void;
 }
@@ -41,14 +46,18 @@ const fmtC = (c: Complex, d = 3) => (Math.abs(c.im) < 1e-9 ? fmt(c.re, d) : `${f
 
 export function DynamicsPanel({ circuit, inputs, state, neuronName, neuronColor, families, note }: Props) {
   const n = circuit.size;
-  const deferredCircuit = useDeferredValue(circuit);
-  const eps = useMemo(() => equilibriumPoints(deferredCircuit, inputs), [deferredCircuit, inputs]);
-  const lc = useMemo(() => findLimitCycle(deferredCircuit, inputs, state), [deferredCircuit, inputs, state]);
+  // Equilibria and the limit cycle run in a worker: they follow the time cursor without blocking it
+  const pointArgs = useMemo(() => ({ circuit, inputs: Array.from(inputs), state: Array.from(state) }), [circuit, inputs, state]);
+  const point = useJob('dynamics.point', pointArgs);
+  const eps = point.value?.eps ?? [];
+  const lc = point.value?.lc ?? null;
 
   return (
     <div>
       {note && <p className="small muted" style={{ marginBottom: 6 }}>{note}</p>}
-      <h3 style={{ marginBottom: 4 }}>Equilibrium points</h3>
+      <h3 style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>Equilibrium points <Busy pending={point.pending} ms={point.ms} /></h3>
+      {!point.value && <p className="small muted">Computing…</p>}
+      <Stale pending={point.pending}>
       <div style={{ overflowX: 'auto' }}>
         <table className="data">
           <thead>
@@ -80,9 +89,10 @@ export function DynamicsPanel({ circuit, inputs, state, neuronName, neuronColor,
           Floquet multipliers: <span className="num">{lc.multipliers.map((m) => fmtC(m, 4)).join(',  ')}</span>
           <span className="muted"> (one is always ≈ 1, along the cycle; the cycle is stable when the others lie inside the unit circle).</span>
         </p>
-      ) : (
+      ) : point.value ? (
         <p className="small muted">No limit cycle: from the current state the flow settles to an equilibrium (or the search did not converge).</p>
-      )}
+      ) : null}
+      </Stale>
 
       <h3 style={{ margin: '10px 0 4px' }}>Bifurcation diagram</h3>
       {families.length > 0 ? <BifurcationDiagram families={families} neuronName={neuronName} neuronColor={neuronColor} state={state} n={n} key={families.map((f) => f.key).join()} /> : <p className="small muted">No parameters to vary.</p>}
@@ -109,19 +119,28 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
   const geom = useRef({ w: 0, h: 0 });
   const k = Math.min(neuron, n - 1);
 
-  // Recompute when the family's circuit changes (deferred so dragging stays responsive)
+  // Families given as plain data are analyzed in a worker (latest request wins); others synchronously
+  const spec = fam.spec ?? null;
+  const branchJob = useJob('dynamics.branches', useMemo(() => (spec ? { family: spec, range } : null), [spec, range]));
   const deferredFam = useDeferredValue(fam);
-  const branches: Branch[] = useMemo(() => {
+  const syncBranches: Branch[] = useMemo(() => {
+    if (spec) return [];
     try { return equilibriumBranches(deferredFam.family, range[0], range[1]); } catch { return []; }
-  }, [deferredFam, range]);
+  }, [spec, deferredFam, range]);
+  const branches = spec ? branchJob.value ?? [] : syncBranches;
   // Limit-cycle branches by continuation (on request: slower)
-  const cycles: CycleBranch[] = useMemo(() => {
-    if (!showCycles) return [];
-    try { return cycleBranches(deferredFam.family, range[0], range[1], branches, state); } catch { return []; }
-  }, [showCycles, deferredFam, range, branches, state]);
+  const stateArr = useMemo(() => Array.from(state), [state]);
+  const cycleJob = useJob('dynamics.cycles', useMemo(() => (spec && showCycles && branchJob.value ? { family: spec, range, branches: branchJob.value, state: stateArr } : null),
+    [spec, showCycles, branchJob.value, range, stateArr]));
+  const syncCycles: CycleBranch[] = useMemo(() => {
+    if (spec || !showCycles) return [];
+    try { return cycleBranches(deferredFam.family, range[0], range[1], syncBranches, state); } catch { return []; }
+  }, [spec, showCycles, deferredFam, range, syncBranches, state]);
+  const cycles = spec ? (showCycles ? cycleJob.value ?? [] : []) : syncCycles;
   // Simulated attractor envelope: min / max of the output after a transient, from the current state
-  const envelope = useMemo(() => {
-    if (showCycles) return [];
+  const envJob = useJob('dynamics.envelope', useMemo(() => (spec && !showCycles ? { family: spec, range, state: stateArr, neuron: k } : null), [spec, showCycles, range, stateArr, k]));
+  const syncEnvelope = useMemo(() => {
+    if (spec || showCycles) return [];
     const out: { l: number; lo: number; hi: number }[] = [];
     const S = 40;
     for (let s = 0; s <= S; s++) {
@@ -138,7 +157,9 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
       }
     }
     return out;
-  }, [deferredFam, range, state, k, showCycles]);
+  }, [spec, deferredFam, range, state, k, showCycles]);
+  const envelope = spec ? (showCycles ? [] : envJob.value ?? []) : syncEnvelope;
+  const diagramPending = spec ? branchJob.pending || (showCycles ? cycleJob.pending : envJob.pending) : false;
 
   const H = 300;
   const { boxRef, canvasRef, width } = useCanvas(H, (ctx, w, h) => {
@@ -251,6 +272,7 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
         <span className="muted">show</span>
         <select value={k} onChange={(e) => setNeuron(Number(e.target.value))}>{Array.from({ length: n }, (_, i) => <option key={i} value={i}>{neuronName(i)} output</option>)}</select>
         <label className="chip"><input type="checkbox" checked={showCycles} onChange={(e) => setShowCycles(e.target.checked)} />follow limit-cycle branches (slower)</label>
+        <Busy pending={diagramPending} />
       </div>
       <div className="legend" style={{ marginBottom: 4 }}>
         <span className="chip"><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke={theme.text} strokeWidth="2.2" /></svg>stable equilibria</span>
@@ -261,7 +283,7 @@ function BifurcationDiagram({ families, neuronName, neuronColor, state, n }: {
           : <span className="chip"><span className="swatch" style={{ background: neuronColor(k), borderRadius: 5 }} />simulated limit-cycle min / max</span>}
         <span className="chip"><span className="swatch" style={{ background: theme.series[1] }} />current value</span>
       </div>
-      <div ref={boxRef} className="canvas-box">
+      <div ref={boxRef} className="canvas-box" style={{ opacity: diagramPending ? 0.6 : 1, transition: 'opacity 0.2s' }}>
         <canvas ref={canvasRef} style={{ cursor: fam.apply ? 'pointer' : 'crosshair' }}
           onMouseMove={(e) => setHover(valueAt(e))} onMouseLeave={() => setHover(null)}
           onClick={(e) => fam.apply?.(Number(valueAt(e).l.toFixed(3)))} />

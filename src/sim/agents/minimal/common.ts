@@ -31,17 +31,22 @@ export function recordFalls(c: MinimalController, body: Body, falls: Fall[], dt:
   const landed = falls.map(() => false);
   const out = runFalls(CTRNN.fromParams(c.circuit), body.eye, body.velGain, falls, dt, opts, (a, objs, active, t) => {
     const v: Record<string, number> = { agentX: a.cx, vx: a.vx, blind: a.blind ? 1 : 0 };
-    const live = objs.filter((_, k) => active[k]);
+    // One reset of the rays per sample: per-object lengths give both what is seen and the combined view
+    const per = a.objectRayLengths(objs), L = body.eye.length;
     objs.forEach((o, k) => {
       const landing = !active[k] && !landed[k];
       v[`ox${k + 1}`] = o.cx;
       v[`oy${k + 1}`] = o.cy;
       v[`relX${k + 1}`] = active[k] || landing ? a.cx - o.cx : NaN;
-      v[`seen${k + 1}`] = active[k] && a.sees(o) ? 1 : 0;
+      v[`seen${k + 1}`] = active[k] && per[k].some((len) => len < L) ? 1 : 0;
       v[`act${k + 1}`] = active[k] ? 1 : 0;
       if (landing) landed[k] = true;
     });
-    a.rayLengths(live).forEach((len, r) => { v[`ray${r + 1}`] = len; });
+    for (let r = 0; r < body.eye.rays; r++) {
+      let len = L;
+      objs.forEach((_, k) => { if (active[k]) len = Math.min(len, per[k][r]); });
+      v[`ray${r + 1}`] = len;
+    }
     const ns = a.nervousSystem;
     for (let i = 0; i < n; i++) { v[`o${i + 1}`] = ns.outputs[i]; v[`y${i + 1}`] = ns.states[i]; v[`I${i + 1}`] = ns.externalInputs[i]; }
     rec.push(t, v);

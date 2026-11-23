@@ -1,8 +1,8 @@
 // Explorer for visually guided orientation (Beer 1996): reactive vs. dynamical agents.
 
-import { useDeferredValue, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
-  orientAssumptions, orientationAgent, orientEvalTrials, orientEye, orientPerformance, randomOrientTrials, runOrientTrials,
+  orientAssumptions, orientationAgent, orientEye, randomOrientTrials,
   type OrientState,
 } from '../../../sim/agents/minimal/orientation';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
@@ -11,16 +11,16 @@ import type { PhaseOverlay } from '../../components/PhasePortrait';
 import { Transport } from '../../components/Transport';
 import { WeightMatrix } from '../../components/WeightMatrix';
 import { EvolutionPanel } from '../../evolution/EvolutionPanel';
-import { fmt } from '../../plot';
+import { fmt, fmtPct } from '../../plot';
 import { useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy, Stale } from '../../components/Busy';
 import { MinimalInfoCard } from './MinimalInfo';
-import { orientationEnsemble } from '../../../sim/agents/minimal/ensembles';
 import { AssumptionList, CircuitCards } from './MinimalCommon';
 import { FallArena, PositionsOverTime, RelativePaths } from './MinimalViews';
 
-const buildInfo = (s: OrientState) => orientationEnsemble(s, 200, s.dt);
 const agent = orientationAgent;
 
 function fromUrl(s: unknown): OrientState | null {
@@ -30,16 +30,15 @@ function fromUrl(s: unknown): OrientState | null {
 }
 
 const defaultAxes = (s: OrientState): [string, string] => [`o${s.circuit.size - 1}`, `o${s.circuit.size}`];
-const random100 = randomOrientTrials(100, 1996);
 
 export function OrientationPage() {
   const theme = useTheme();
   const ex = useExplorer(agent, { fromUrl, defaultAxes });
   const { state, rec, cur, window } = ex;
-  const deferred = useDeferredValue(state);
-  const evalPerf = useMemo(() => orientPerformance(deferred, orientEvalTrials, deferred.dt), [deferred]);
-  const randomPerf = useMemo(() => orientPerformance(deferred, random100, deferred.dt), [deferred]);
-  const results = useMemo(() => runOrientTrials(deferred, orientEvalTrials), [deferred]);
+  // Performance and all evaluation trials run in the background
+  const summary = useJob('orientation.summary', state);
+  const evalPerf = summary.value?.evalPerf ?? NaN, randomPerf = summary.value?.randomPerf ?? NaN;
+  const results = summary.value?.results ?? [];
   const objColor = [theme.series[0]];
   // The other kind of agent (reactive vs dynamical) on the same trial, from the presets
   const other = useMemo(() => {
@@ -97,8 +96,8 @@ export function OrientationPage() {
           <LoadedBanner loaded={ex.loaded} onPin={ex.pin} onRevert={ex.selectIndividual} />
           <div className="stats" style={{ marginBottom: 8 }}>
             <div className="stat"><span className="v num">{fmt(Math.abs(rec.summary.dx), 1)}</span><span className="l">miss distance this trial</span></div>
-            <div className="stat"><span className="v num">{fmt(evalPerf * 100, 1)}%</span><span className="l">performance, 8 evaluation trials</span></div>
-            <div className="stat"><span className="v num">{fmt(randomPerf * 100, 1)}%</span><span className="l">on 100 random trials (paper: reactive 90.3%, dynamical 96.6%)</span></div>
+            <div className="stat"><span className="v num">{fmtPct(evalPerf, 1)}</span><span className="l">performance, 8 evaluation trials <Busy pending={summary.pending} ms={summary.ms} label="" /></span></div>
+            <div className="stat"><span className="v num">{fmtPct(randomPerf, 1)}</span><span className="l">on 100 random trials (paper: reactive 90.3%, dynamical 96.6%)</span></div>
           </div>
           {other ? (
             <div className="split-2">
@@ -123,13 +122,15 @@ export function OrientationPage() {
           axes={ex.axes} onAxes={(x, y) => ex.setAxes([x, y])} overlays={overlays} bodyRows={bodyRows} />
 
         <div className="card">
-          <div className="card-head"><h2>Evaluation trials</h2><span className="muted small">object paths relative to the agent; click one to load it</span></div>
+          <div className="card-head"><h2>Evaluation trials</h2><span className="muted small">object paths relative to the agent; click one to load it</span><div className="spacer" /><Busy pending={summary.pending} ms={summary.ms} /></div>
+          <Stale pending={summary.pending}>
           <RelativePaths items={results.map((r) => ({ paths: r.paths, label: `x ${fmt(r.trial.x, 0)}, vx ${fmt(r.trial.vx, 1)}, vy ${fmt(r.trial.vy, 1)}: miss ${fmt(Math.abs(r.dx), 1)}`, selected: r.trial.x === state.trial.x && r.trial.vx === state.trial.vx && r.trial.vy === state.trial.vy }))}
             colors={objColor} onSelect={(k) => setTrial(results[k].trial)} />
+          </Stale>
           <p className="small muted">A caught object ends at 0 (the dashed line) at the bottom. Fitness is (200 − mean miss distance) / 200, the paper&apos;s performance as a fraction of its maximum.</p>
         </div>
 
-        <MinimalInfoCard state={state} build={buildInfo} defaultPair={['relX1', `o${state.circuit.size - 1}`]}
+        <MinimalInfoCard job="orientation.ensemble" state={state} defaultPair={['relX1', `o${state.circuit.size - 1}`]}
           summary="what each neuron knows about the falling object, over the course of the fall, across 200 random trials"
           description={<>Runs 200 random trials and measures the mutual information between the object&apos;s motion (where it will land, which side it starts on,
             its horizontal velocity, its fall speed) and each neuron&apos;s output, following Williams &amp; Beer (2010) and Beer &amp; Williams (2015). Trials

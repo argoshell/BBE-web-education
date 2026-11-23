@@ -1,8 +1,8 @@
 // Explorer for delayed response / short-term memory (Slocum, Downey & Beer 2000, §5).
 
-import { useDeferredValue, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
-  memoryAgent, memoryAssumptions, memoryStateFor, memoryEvalTrials, memoryEye, memoryPerformance, randomMemoryTrials, runMemoryTrials,
+  memoryAgent, memoryAssumptions, memoryStateFor, memoryEvalTrials, memoryEye,
   type MemoryState, type MemoryTask,
 } from '../../../sim/agents/minimal/memory';
 import { AgentDynamicsCard } from '../../components/AgentDynamicsCard';
@@ -10,16 +10,16 @@ import { NumberField, SelectField } from '../../components/controls';
 import type { PhaseOverlay } from '../../components/PhasePortrait';
 import { Transport } from '../../components/Transport';
 import { EvolutionPanel } from '../../evolution/EvolutionPanel';
-import { fmt } from '../../plot';
+import { fmt, fmtPct } from '../../plot';
 import { useTheme } from '../../theme';
 import { CompareCard, LoadedBanner } from '../common';
 import { useExplorer } from '../useExplorer';
+import { useJob } from '../../hooks/useJob';
+import { Busy, Stale } from '../../components/Busy';
 import { MinimalInfoCard } from './MinimalInfo';
-import { memoryEnsemble } from '../../../sim/agents/minimal/ensembles';
 import { AssumptionList, CircuitCards } from './MinimalCommon';
 import { AccuracyPlot, FallArena, PositionsOverTime, RelativePaths } from './MinimalViews';
 
-const buildInfo = (s: MemoryState) => memoryEnsemble(s, 200);
 const agent = memoryAgent;
 
 function fromUrl(s: unknown): MemoryState | null {
@@ -35,13 +35,11 @@ export function MemoryPage() {
   const theme = useTheme();
   const ex = useExplorer(agent, { fromUrl, defaultAxes });
   const { state, rec, cur, window } = ex;
-  const deferred = useDeferredValue(state);
-  const evalTrials = useMemo(() => memoryEvalTrials(deferred.task), [deferred.task]);
-  const randomTrials = useMemo(() => randomMemoryTrials(deferred.task, 200, 2000), [deferred.task]);
-  const evalPerf = useMemo(() => memoryPerformance(deferred, deferred.task, evalTrials, deferred.dt, deferred.blindAfter), [deferred, evalTrials]);
-  const results = useMemo(() => runMemoryTrials(deferred, evalTrials), [deferred, evalTrials]);
-  const randomResults = useMemo(() => runMemoryTrials(deferred, randomTrials), [deferred, randomTrials]);
-  const randomPerf = useMemo(() => memoryPerformance(deferred, deferred.task, randomTrials, deferred.dt, deferred.blindAfter), [deferred, randomTrials]);
+  // Performance, evaluation and random trials run in the background
+  const summary = useJob('memory.summary', state);
+  const evalTrials = useMemo(() => memoryEvalTrials(state.task), [state.task]);
+  const evalPerf = summary.value?.evalPerf ?? NaN, randomPerf = summary.value?.randomPerf ?? NaN;
+  const results = summary.value?.results ?? [], randomResults = summary.value?.randomResults ?? [];
   const objColor = [theme.series[0]];
   const setTrial = (patch: Partial<MemoryState['trial']>) => { ex.setState({ ...state, trial: { ...state.trial, ...patch } }); ex.setIdx(0); };
   const switchTask = (t: MemoryTask) => {
@@ -104,8 +102,8 @@ export function MemoryPage() {
           <div className="stats" style={{ marginBottom: 8 }}>
             <div className="stat"><span className="v num">{fmt(Math.abs(rec.summary.dx), 1)}</span><span className="l">miss distance this trial</span></div>
             <div className="stat"><span className="v num">{Number.isNaN(blindT) ? 'never' : `t = ${fmt(blindT, 1)}`}</span><span className="l">went blind</span></div>
-            <div className="stat"><span className="v num">{fmt(evalPerf * 100, 1)}%</span><span className="l">{evalTrials.length} evaluation trials</span></div>
-            <div className="stat"><span className="v num">{fmt(randomPerf * 100, 1)}%</span><span className="l">200 random trials (paper: {state.task === 'vertical' ? '99.3%' : '95.7%'})</span></div>
+            <div className="stat"><span className="v num">{fmtPct(evalPerf, 1)}</span><span className="l">{evalTrials.length} evaluation trials <Busy pending={summary.pending} ms={summary.ms} label="" /></span></div>
+            <div className="stat"><span className="v num">{fmtPct(randomPerf, 1)}</span><span className="l">200 random trials (paper: {state.task === 'vertical' ? '99.3%' : '95.7%'})</span></div>
           </div>
           <div className="split-2">
             <FallArena rec={rec} idx={cur} eye={memoryEye} objects={1} colors={objColor} />
@@ -122,19 +120,23 @@ export function MemoryPage() {
 
         <div className="row-2">
           <div className="card">
-            <div className="card-head"><h2>Evaluation trials</h2><span className="muted small">object paths relative to the agent; click to load</span></div>
+            <div className="card-head"><h2>Evaluation trials</h2><span className="muted small">object paths relative to the agent; click to load</span><div className="spacer" /><Busy pending={summary.pending} ms={summary.ms} /></div>
+            <Stale pending={summary.pending}>
             <RelativePaths items={results.map((r) => ({ paths: r.paths, label: `x ${fmt(r.trial.x, 1)}${state.task === 'diagonal' ? `, vx ${fmt(r.trial.vx, 2)}` : ''}: miss ${fmt(Math.abs(r.dx), 1)}`, selected: r.trial.x === state.trial.x && r.trial.vx === state.trial.vx }))}
               colors={objColor} onSelect={(k) => setTrial(results[k].trial)} />
+            </Stale>
             <p className="small muted">Slocum et al. Figures 10 and 12. Lines bend where the agent starts to move, which is also when it goes blind.</p>
           </div>
           <div className="card">
-            <div className="card-head"><h2>Accuracy</h2><span className="muted small">200 random trials</span></div>
+            <div className="card-head"><h2>Accuracy</h2><span className="muted small">200 random trials</span><div className="spacer" /><Busy pending={summary.pending} /></div>
+            <Stale pending={summary.pending}>
             <AccuracyPlot points={randomResults.map((r) => ({ object: r.finalObjectX, agent: r.finalAgentX }))} color={theme.series[0]} range={state.task === 'vertical' ? 60 : 120} />
+            </Stale>
             <p className="small muted">Slocum et al. Figures 9 and 11. A perfect blind catcher ends on the dashed diagonal. Errors cluster near the midline (the object reaches the outer ray too late) and at the periphery (every far object looks the same).</p>
           </div>
         </div>
 
-        <MinimalInfoCard state={state} build={buildInfo} defaultPair={['relX1', `o${state.circuit.size - 1}`]}
+        <MinimalInfoCard job="memory.ensemble" state={state} defaultPair={['relX1', `o${state.circuit.size - 1}`]}
           time={rec.t[cur]} onSeekTime={(t) => ex.setIdx(Math.max(0, Math.round(t / state.dt)))}
           summary="what each neuron knows about the object, before and after the agent goes blind, across 200 random trials"
           description={<>Runs 200 random trials and measures the mutual information between where the object will land (and, for diagonal falls, its drift)

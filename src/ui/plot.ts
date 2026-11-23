@@ -12,11 +12,18 @@ export function niceTicks(min: number, max: number, count = 5): number[] {
   return out;
 }
 
+/** Format a number; NaN (not available, e.g. still computing) shows as a dash. */
 export function fmt(v: number, digits = 3): string {
+  if (Number.isNaN(v)) return '—';
   if (!Number.isFinite(v)) return String(v);
   const a = Math.abs(v);
   if (a !== 0 && (a < 1e-3 || a >= 1e5)) return v.toExponential(2);
   return Number(v.toFixed(digits)).toString();
+}
+
+/** A fraction as a percentage ("93.1%"), or a dash when not available. */
+export function fmtPct(v: number, digits = 1): string {
+  return Number.isNaN(v) ? '—' : `${fmt(v * 100, digits)}%`;
 }
 
 export function extent(a: ArrayLike<number>, from = 0, to = a.length): [number, number] {
