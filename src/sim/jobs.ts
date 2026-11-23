@@ -1,6 +1,7 @@
 // Named analysis jobs that run in a background worker (src/workers/analysis.worker.ts) so slow
 // computations never freeze the page. Every job takes and returns structured-cloneable data.
 
+import { detailOverTime, infoOverTime, laggedMI, type Ensemble, type InfoOptions } from './analysis/information';
 import { equilibriumBranches, equilibriumPoints, findLimitCycle, type Branch } from './analysis/dynamics';
 import { cycleBranches } from './analysis/cycles';
 import { setParam } from './core/circuitParams';
@@ -57,6 +58,14 @@ export const jobs = {
     }
     return out;
   },
+
+  // ---- information panels (the ensemble or recording is the hook's context, sent to the worker once)
+  'info.over': (a: { stim: number; opts: InfoOptions }, e: Ensemble) => infoOverTime(e, a.stim, a.opts),
+  'info.detail': (a: { stim: number; a: number; b: number; opts: InfoOptions }, e: Ensemble) => detailOverTime(e, a.stim, a.a, a.b, a.opts),
+  'info.lagged': (a: { keys: string[]; target: string; lags: number[]; bins: number; from: number }, ch: Record<string, Float64Array>) => ({
+    rows: a.keys.map((k) => laggedMI(ch[k], ch[a.target], a.lags, a.bins, a.from)),
+    hT: laggedMI(ch[a.target], ch[a.target], [0], a.bins, a.from)[0],
+  }),
 
   // ---- page summaries
   'visual.trials': (s: VisualState) => runAllVisualTrials(s),
@@ -121,4 +130,6 @@ export const jobs = {
 
 export type JobName = keyof typeof jobs;
 export type JobArgs<K extends JobName> = Parameters<(typeof jobs)[K]>[0];
+/** Large data a job reads besides its arguments (sent to the worker only when it changes). */
+export type JobContext<K extends JobName> = Parameters<(typeof jobs)[K]> extends [unknown, infer C] ? C : undefined;
 export type JobResult<K extends JobName> = ReturnType<(typeof jobs)[K]>;

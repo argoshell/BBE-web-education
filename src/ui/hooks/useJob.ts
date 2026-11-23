@@ -4,7 +4,7 @@
 // result stays visible, marked pending, until the result for the current inputs arrives.
 
 import { useEffect, useRef, useState } from 'react';
-import type { JobArgs, JobName, JobResult } from '../../sim/jobs';
+import type { JobArgs, JobContext, JobName, JobResult } from '../../sim/jobs';
 import type { JobRequest, JobResponse } from '../../workers/analysis.worker';
 
 export interface JobState<T> {
@@ -15,24 +15,33 @@ export interface JobState<T> {
   error?: string;
   /** Duration of the last computation, ms. */
   ms?: number;
+  /** The arguments `value` was computed for (they may differ from the current ones while pending). */
+  args?: unknown;
 }
 
 interface Done<T> { value: T | undefined; forArgs: unknown; error?: string; ms?: number }
 
-/**
- * `args` must keep its identity while the inputs are unchanged (memoize it); pass null to skip.
- * `onResult` (optional) is called with each result and the arguments it was computed for.
- */
-export function useJob<K extends JobName>(job: K, args: JobArgs<K> | null, onResult?: (result: JobResult<K>, args: JobArgs<K>) => void): JobState<JobResult<K>> {
+export interface JobOptions<K extends JobName> {
+  /** Called with each result and the arguments it was computed for. */
+  onResult?: (result: JobResult<K>, args: JobArgs<K>) => void;
+  /** Large data the job reads (an ensemble, a recording): posted to the worker only when its identity changes. */
+  context?: JobContext<K>;
+}
+
+/** `args` (and `context`) must keep their identity while unchanged (memoize them); pass null args to skip. */
+export function useJob<K extends JobName>(job: K, args: JobArgs<K> | null, opts: JobOptions<K> = {}): JobState<JobResult<K>> {
+  const { onResult, context } = opts;
   const [done, setDone] = useState<Done<JobResult<K>>>({ value: undefined, forArgs: undefined });
-  const ref = useRef({ worker: null as Worker | null, busy: false, queued: null as JobArgs<K> | null, nextId: 0, sent: new Map<number, unknown>() });
+  const ref = useRef({ worker: null as Worker | null, busy: false, queued: null as JobArgs<K> | null, nextId: 0, sent: new Map<number, unknown>(), contextSent: undefined as unknown, context: undefined as unknown });
+  // Always post the latest context with the next request
+  useEffect(() => { ref.current.context = context; });
   const onResultRef = useRef(onResult);
   useEffect(() => { onResultRef.current = onResult; });
 
   useEffect(() => () => {
     const r = ref.current;
     r.worker?.terminate();
-    Object.assign(r, { worker: null, busy: false, queued: null });
+    Object.assign(r, { worker: null, busy: false, queued: null, contextSent: undefined });
     r.sent.clear();
   }, []);
 
@@ -55,10 +64,13 @@ export function useJob<K extends JobName>(job: K, args: JobArgs<K> | null, onRes
       r.busy = true;
       const id = r.nextId++;
       r.sent.set(id, a);
-      r.worker.postMessage({ id, job, args: a } satisfies JobRequest);
+      const hasContext = r.context !== r.contextSent;
+      r.worker.postMessage({ id, job, args: a, ...(hasContext ? { context: r.context, hasContext: true } : {}) } satisfies JobRequest);
+      r.contextSent = r.context;
     };
+    r.context = context;
     if (r.busy) r.queued = args; else send(args);
-  }, [job, args]);
+  }, [job, args, context]);
 
-  return { value: done.value, pending: args !== null && done.forArgs !== args, error: done.error, ms: done.ms };
+  return { value: done.value, pending: args !== null && done.forArgs !== args, error: done.error, ms: done.ms, args: done.forArgs };
 }

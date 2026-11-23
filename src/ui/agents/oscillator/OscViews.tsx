@@ -125,14 +125,14 @@ export function ParamMap({ state, onPick }: { state: OscState; onPick: (xKey: Pa
   const sliceArgs = useMemo(() => (cur.row < res ? { state, x: validX, y: validY, xr, yr, metric, res, row0: cur.row, row1: Math.min(res, cur.row + SLICE) } : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [basis, cur.row]);
-  useJob('oscillator.mapRows', sliceArgs, (rows, a) => setProg((p) => {
+  useJob('oscillator.mapRows', sliceArgs, { onResult: (rows, a) => setProg((p) => {
     const b = JSON.stringify({ ...a.state, x: a.x, y: a.y, xr: a.xr, yr: a.yr, metric: a.metric, res: a.res });
     const base = p.basis === b ? p : { basis: b, row: 0, cells: new Array<MapCell | null>(a.res * a.res).fill(null) };
     if (base.row !== a.row0) return base;
     const next = base.cells.slice();
     rows.forEach((c, i) => { next[a.row0 * a.res + i] = c; });
     return { basis: b, row: a.row1, cells: next };
-  }));
+  }) });
 
   const done = cells.filter(Boolean).length;
   // Exact fold and Hopf curves for the two swept parameters (Dynamica's BifurcationBranches), also in the background

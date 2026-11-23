@@ -2,7 +2,7 @@
 // the simulated recording, playback, phase-portrait axes, the selected evolved
 // individual and up to three pinned individuals for comparison.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { AgentModule } from '../../sim/agent';
 import type { Recording } from '../../sim/core/recording';
 import { useEvolution } from '../evolution/useEvolution';
@@ -59,9 +59,20 @@ export function useExplorer<P, E>(agent: AgentModule<P, E>, opts: ExplorerOption
 
   useEffect(() => writeHash(agent.id, state), [agent.id, state]);
 
-  const rec = useMemo(() => agent.simulate(state), [agent, state]);
-  const channels = useMemo(() => agent.channels(state), [agent, state]);
-  const circuitView = useMemo(() => agent.circuitView(state), [agent, state]);
+  // The displayed trial is simulated from a deferred copy of the parameters: while a slider is dragged,
+  // React keeps the input responsive and skips intermediate values instead of simulating each one.
+  // Channels and the circuit view follow the same copy, so they always match the recording. When the
+  // shape changes (a preset or task with another circuit size), simulate the current state at once so
+  // pages that size things from the state never read a recording of another shape.
+  const deferred = useDeferredValue(state);
+  const sameShape = useMemo(() => {
+    const a = agent.channels(deferred), b = agent.channels(state);
+    return a.length === b.length && a.every((c, i) => c.key === b[i].key);
+  }, [agent, deferred, state]);
+  const simState = sameShape ? deferred : state;
+  const rec = useMemo(() => agent.simulate(simState), [agent, simState]);
+  const channels = useMemo(() => agent.channels(simState), [agent, simState]);
+  const circuitView = useMemo(() => agent.circuitView(simState), [agent, simState]);
   const n = rec.t.length;
   const window: [number, number] = [Math.max(0, Math.min(win[0], n - 2)), Math.min(win[1], n - 1)];
   const cur = Math.min(idx, n - 1);

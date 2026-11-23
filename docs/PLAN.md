@@ -152,6 +152,22 @@ details against the sources before implementing, and add CLI evolution checks li
 4. **Learning without synaptic plasticity** (done, Izquierdo et al. 2008): associative learning carried by circuit dynamics
    (e.g. Yamauchi & Beer 1994; Izquierdo, Harvey & Beer 2008); trials whose rule changes within a lifetime.
 
+### Responsiveness todo (2026-11-23)
+
+Measured with `node scripts/perf-check.mjs [--throttle 4]` against the production build (long tasks > 50 ms;
+4× throttle ≈ a mid-range phone).
+
+- [x] Summary analyses, information ensembles, oscillator map/curves/RK4 check, pinned scores and the Dynamics card in background workers (`useJob`).
+- [x] "Updating…" indicators, dimmed stale results, a dash for values not yet computed, time left for evolution runs.
+- [x] `scripts/perf-check.mjs`: repeatable responsiveness check.
+- [x] Lagged information card (oscillator, walker): was 0.75 s on the main thread (3.8 s at 4×); now the `info.lagged` job, with the recording as job context.
+- [x] Information panel: stimulus, bins and channel-pair changes were 0.1–0.17 s on the main thread (0.85 s at 4×); now `info.over` / `info.detail` jobs. The ensemble goes to each worker once as job context (`useJob`'s `context` option), so a settings change posts only a few numbers.
+- [x] Slider drags: the displayed trial is simulated from a deferred copy of the parameters (`useExplorer`), so React skips intermediate values while dragging; it simulates at once when the circuit's shape changes (that also fixed a crash when a preset changed the oscillator's size).
+- [ ] Chemotaxis: one simulated trial still takes ≈ 40 ms (≈ 0.17 s at 4×), mostly the ring-buffer sums of Izquierdo's code, which must stay as they are for the fixtures. If it matters on phones, simulate the displayed trial in a worker for slow agents.
+- [x] Information panel crash when the stimulus changed while results were updating (charts mixed the new stimulus's categories with the old results); `useJob` now reports which arguments its value was computed for.
+- [ ] At 4×, slider steps on the visual, guided and orientation pages still take ≈ 0.1 s each (chemotaxis ≈ 0.25 s): the displayed trial plus redraws. Profile the redraws (trace stack, phase portrait, arenas) if this matters on phones. At normal speed no page has long tasks.
+- [x] `perf-check` documented in CLAUDE.md.
+
 ### Other ideas
 
 - Resume a run from an exported file (needs search state in the file); lineage tree view with crossover edges.

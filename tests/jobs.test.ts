@@ -42,7 +42,26 @@ describe('background analysis jobs', () => {
 
   it('covers every job except the slow ensembles and on-request analyses', () => {
     const tested = new Set(cases.map((c) => c[0]));
-    const skipped = ['dynamics.cycles', 'chemotaxis.refined', 'chemotaxis.pinFits', 'orientation.ensemble', 'memory.ensemble', 'attention.ensemble'];
+    const skipped = ['info.over', 'info.detail', 'info.lagged', 'dynamics.cycles', 'chemotaxis.refined', 'chemotaxis.pinFits', 'orientation.ensemble', 'memory.ensemble', 'attention.ensemble'];
     for (const k of Object.keys(jobs)) expect(tested.has(k as JobName) || skipped.includes(k)).toBe(true);
+  });
+});
+
+import { infoOverTime } from '../src/sim/analysis/information';
+import { visualEnsemble } from '../src/sim/agents/visual/ensemble';
+
+describe('information jobs read their context', () => {
+  it('info.over and info.detail match a direct computation; info.lagged returns one row per channel', () => {
+    const e = visualEnsemble(p('visual'), { perShape: 6 });
+    const opts = { bins: 4, binning: 'width' as const, stride: 4 };
+    const direct = infoOverTime(e, 0, opts);
+    const viaJob = jobs['info.over']({ stim: 0, opts }, e);
+    expect(viaJob.mi[3]).toEqual(direct.mi[3]);
+    const d = jobs['info.detail']({ stim: 0, a: 1, b: 2, opts }, e);
+    expect(() => structuredClone(d)).not.toThrow();
+    const rec = agentModules.oscillator.simulate(osc);
+    const lag = jobs['info.lagged']({ keys: ['o1', 'o2'], target: 'o1', lags: [-5, 0, 5], bins: 4, from: 100 }, rec.channels);
+    expect(lag.rows).toHaveLength(2);
+    expect(lag.rows[0][1]).toBeCloseTo(lag.hT, 9);
   });
 });

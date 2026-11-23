@@ -14,6 +14,7 @@ analysis and in-browser evolution. Plan and status: `docs/PLAN.md`.
   `../wolfram-license` (outside the repo). CI only checks the committed fixtures.
 - `npx tsx scripts/evolve.ts --agent walker|visual ...`: command-line evolution (used for presets)
 - `node scripts/screenshot.mjs <url> <out.png>`: headless screenshot with local Chrome
+- `node scripts/perf-check.mjs [--throttle 4]`: main-thread long tasks per page (against `npx vite preview --port 4173` after a build)
 
 ## Rules
 
@@ -24,6 +25,7 @@ analysis and in-browser evolution. Plan and status: `docs/PLAN.md`.
   `native/harness/` and a fixture test for every ported class before building UI on it.
 - Index conventions: TS is 0-based; CTRNN weights are row-major by source neuron (`w[from * n + to]`).
 - Everything in `src/sim/` is worker-safe (no DOM/React); configs passed to workers must be structured-cloneable.
+- Anything slower than ~50 ms per change runs as a named job (`src/sim/jobs.ts`) through `useJob`, not in a `useMemo` (`useDeferredValue` doesn't stop a slow computation from freezing the page).
 
 ## Adding an agent
 

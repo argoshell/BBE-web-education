@@ -6,7 +6,9 @@
 //    of I(S; A, B) into redundant, unique and synergistic parts.
 
 import { useMemo, useRef, useState } from 'react';
-import { detailOverTime, infoOverTime, type Binning, type Ensemble } from '../../sim/analysis/information';
+import type { Binning, Ensemble } from '../../sim/analysis/information';
+import { Busy, Stale } from '../components/Busy';
+import { useJob } from '../hooks/useJob';
 import { LineChart } from '../components/LineChart';
 import { useCanvas } from '../hooks/useCanvas';
 import { drawXAxis, fmt, linear, niceTicks } from '../plot';
@@ -21,6 +23,7 @@ function ramp(theme: Theme, t: number): string {
 }
 
 const LEFT = 92, RIGHT = 12, AXIS = 30;
+const emptyOver = { t: new Float64Array(0), mi: [] as Float64Array[], hS: 0 };
 
 interface Props {
   ensemble: Ensemble;
@@ -46,8 +49,18 @@ export function InfoPanel({ ensemble, colorOf, time, onSeekTime, defaultPair }: 
   const opts = useMemo(() => ({ bins, binning, stride }), [bins, binning, stride]);
   const st = ensemble.stimuli[Math.min(stim, ensemble.stimuli.length - 1)];
 
-  const over = useMemo(() => infoOverTime(ensemble, stim, opts), [ensemble, stim, opts]);
-  const detail = useMemo(() => detailOverTime(ensemble, stim, a, b, opts), [ensemble, stim, a, b, opts]);
+  // Computed in background workers; the ensemble is posted to each worker once (job context)
+  const overJob = useJob('info.over', useMemo(() => ({ stim, opts }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ensemble, stim, opts]), { context: ensemble });
+  const detailJob = useJob('info.detail', useMemo(() => ({ stim, a, b, opts }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ensemble, stim, a, b, opts]), { context: ensemble });
+  const over = overJob.value ?? emptyOver;
+  const detail = detailJob.value;
+  // Label the detail charts with the stimulus and channels they were computed for (they lag while updating)
+  const dArgs = detailJob.args as { stim: number; a: number; b: number } | undefined;
+  const dst = ensemble.stimuli[Math.min(dArgs?.stim ?? stim, ensemble.stimuli.length - 1)];
   const [hover, setHover] = useState<{ row: number; col: number; px: number; py: number } | null>(null);
   const geom = useRef({ w: 0 });
   const rowH = 16;
@@ -56,6 +69,7 @@ export function InfoPanel({ ensemble, colorOf, time, onSeekTime, defaultPair }: 
   const { boxRef, canvasRef, width } = useCanvas(H, (ctx, w) => {
     geom.current.w = w;
     const cols = over.t.length;
+    if (cols < 2) return;
     const cw = (w - LEFT - RIGHT) / cols;
     over.mi.forEach((row, r) => {
       const top = r * rowH;
@@ -117,6 +131,7 @@ export function InfoPanel({ ensemble, colorOf, time, onSeekTime, defaultPair }: 
           <option value="quantile">equal-count bins</option>
         </select>
         <span className="muted">{ensemble.trials} trials · H(S) = {fmt(over.hS, 3)} bits</span>
+        <Busy pending={overJob.pending || detailJob.pending} label={overJob.value ? 'updating…' : 'computing…'} />
       </div>
 
       <div className="legend" style={{ marginBottom: 4 }}>
@@ -146,21 +161,23 @@ export function InfoPanel({ ensemble, colorOf, time, onSeekTime, defaultPair }: 
         <span className="muted">A</span>{chanSelect(keys[a], setA)}
         <span className="muted">B</span>{chanSelect(keys[b], setB)}
       </div>
+      {!detail || overJob.value === undefined ? <p className="small muted">Computing…</p> : (
+      <Stale pending={overJob.pending || detailJob.pending}>
       <div className="row-2" style={{ gap: 16 }}>
         <div>
           <h3 style={{ marginBottom: 4 }}>Information about {st.key} in A and B</h3>
           <LineChart x={detail.t} xLabel="time" yLabel="bits" marker={time} onClickX={onSeekTime}
             yRange={[0, Math.max(over.hS, 0.05) * 1.05]}
             series={[
-              { label: `A: ${ensemble.channels[a].label}`, values: over.mi[a], color: colorA, dash: dashA },
-              { label: `B: ${ensemble.channels[b].label}`, values: over.mi[b], color: colorB0, dash: dashB },
+              { label: `A: ${ensemble.channels[a].label}`, values: over.mi[a] ?? detail.t.map(() => NaN), color: colorA, dash: dashA },
+              { label: `B: ${ensemble.channels[b].label}`, values: over.mi[b] ?? detail.t.map(() => NaN), color: colorB0, dash: dashB },
             ]}
             band={{ label: 'chance level for A (95% of shuffles)', values: detail.baseline }} />
         </div>
         <div>
           <h3 style={{ marginBottom: 4 }}>Specific information in A, per {st.key}</h3>
           <LineChart x={detail.t} xLabel="time" yLabel="bits" marker={time} onClickX={onSeekTime}
-            series={st.categories.map((cat, k) => ({ label: `I(S = ${cat}; A)`, values: detail.specific[k], color: catStyles[k % 4].c, dash: catStyles[k % 4].d }))} />
+            series={dst.categories.slice(0, detail.specific.length).map((cat, k) => ({ label: `I(S = ${cat}; A)`, values: detail.specific[k], color: catStyles[k % 4].c, dash: catStyles[k % 4].d }))} />
         </div>
       </div>
       <h3 style={{ margin: '12px 0 4px' }}>How A and B share information about {st.key} (partial information decomposition)</h3>
@@ -171,6 +188,8 @@ export function InfoPanel({ ensemble, colorOf, time, onSeekTime, defaultPair }: 
           { label: `unique to B`, values: detail.pid.uniqueB, color: colorB0, dash: dashB },
           { label: 'synergistic (only together)', values: detail.pid.synergy, color: theme.muted, dash: [2, 3] },
         ]} />
+      </Stale>
+      )}
       <p className="small muted" style={{ marginTop: 6 }}>
         Estimates use plug-in probabilities from {ensemble.trials} trials, so small values are inflated by sampling bias. Compare against the
         shaded chance level, and try fewer bins or more trials. Specific information I(S = s; A) says how much observing A

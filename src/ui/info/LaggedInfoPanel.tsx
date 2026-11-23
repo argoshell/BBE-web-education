@@ -3,7 +3,8 @@
 // target (its present predicts the target's future); a negative lag means it echoes it.
 
 import { useMemo, useRef, useState } from 'react';
-import { laggedMI } from '../../sim/analysis/information';
+import { Busy } from '../components/Busy';
+import { useJob } from '../hooks/useJob';
 import type { Recording } from '../../sim/core/recording';
 import { LineChart } from '../components/LineChart';
 import { useCanvas } from '../hooks/useCanvas';
@@ -44,17 +45,20 @@ export function LaggedInfoPanel({ rec, channels, targets, fromTime }: Props) {
   const dt = rec.t.length > 1 ? rec.t[1] - rec.t[0] : 1;
   const from = Math.max(0, Math.round(fromTime / dt));
 
-  const { lagTimes, rows, hT } = useMemo(() => {
+  // Lags are cheap to list; the information itself is computed in a background worker
+  const lags = useMemo(() => {
     const steps = Math.max(1, Math.round(maxLag / dt));
     const stride = Math.max(1, Math.round((2 * steps) / 80));
-    const lags: number[] = [];
-    for (let l = -steps; l <= steps; l += stride) lags.push(l);
-    const y = rec.channels[target];
-    const rows = channels.map((c) => laggedMI(rec.channels[c.key], y, lags, bins, from));
-    // Entropy of the (binned) target bounds the information
-    const self = laggedMI(y, y, [0], bins, from)[0];
-    return { lagTimes: Float64Array.from(lags, (l) => l * dt), rows, hT: self };
-  }, [rec, channels, target, maxLag, bins, from, dt]);
+    const out: number[] = [];
+    for (let l = -steps; l <= steps; l += stride) out.push(l);
+    return out;
+  }, [maxLag, dt]);
+  const lagTimes = useMemo(() => Float64Array.from(lags, (l) => l * dt), [lags, dt]);
+  const job = useJob('info.lagged', useMemo(() => ({ keys: channels.map((c) => c.key), target, lags, bins, from }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rec, channels, target, lags, bins, from]), { context: rec.channels });
+  const rows = job.value?.rows ?? channels.map(() => new Float64Array(lagTimes.length));
+  const hT = job.value?.hT ?? NaN;
 
   const H = channels.length * ROW + AXIS;
   const { boxRef, canvasRef, width } = useCanvas(H, (ctx, w) => {
@@ -108,13 +112,14 @@ export function LaggedInfoPanel({ rec, channels, targets, fromTime }: Props) {
         <span className="muted">bins</span>
         <select value={bins} onChange={(e) => setBins(Number(e.target.value))}>{[2, 4, 8, 16].map((v) => <option key={v} value={v}>{v}</option>)}</select>
         <span className="muted">equal-count bins · samples after t = {fmt(fromTime, 0)} · H(target) = {fmt(hT, 2)} bits</span>
+        <Busy pending={job.pending} label={job.value ? 'updating…' : 'computing…'} />
       </div>
       <div className="legend" style={{ marginBottom: 4 }}>
         <span className="chip"><span className="swatch" style={{ width: 40, background: `linear-gradient(90deg, ${ramp(theme, 0)}, ${ramp(theme, 1)})`, border: `1px solid ${theme.axis}` }} />I(channel(t); target(t + lag)) from 0 to H(target)</span>
         <span className="chip"><span className="swatch" style={{ background: theme.series[1] }} />peak lag</span>
         <span className="muted small">click a row for detail</span>
       </div>
-      <div ref={boxRef} className="canvas-box">
+      <div ref={boxRef} className="canvas-box" style={{ opacity: job.pending ? 0.55 : 1, transition: 'opacity 0.2s' }}>
         <canvas ref={canvasRef} style={{ cursor: 'pointer' }}
           onMouseMove={(e) => setHover(cellAt(e))} onMouseLeave={() => setHover(null)}
           onClick={(e) => { const c = cellAt(e); if (c) setSel(channels[c.r].key); }} />
@@ -127,7 +132,7 @@ export function LaggedInfoPanel({ rec, channels, targets, fromTime }: Props) {
       </div>
       {channels[si] && (
         <div style={{ marginTop: 10 }}>
-          <LineChart x={lagTimes} xLabel="lag" yLabel="bits" marker={0} height={170} yRange={[0, Math.max(hT, 0.05) * 1.05]}
+          <LineChart x={lagTimes} xLabel="lag" yLabel="bits" marker={0} height={170} yRange={[0, Math.max(Number.isFinite(hT) ? hT : 0, 0.05) * 1.05]}
             series={[{ label: `${channels[si].label} about ${targetLabel}`, values: rows[si], color: channels[si].color ?? theme.text }]} />
         </div>
       )}
